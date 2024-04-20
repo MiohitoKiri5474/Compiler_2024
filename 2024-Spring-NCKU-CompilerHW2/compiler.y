@@ -28,6 +28,10 @@
 /* Token with return, which need to sepcify type */
 %token <var_type> VARIABLE_T
 %token <s_var> IDENT
+%token <i_var> INT_LIT
+%token <s_var> STR_LIT
+%token <b_var> BOOL_LIT
+%token <f_var> FLOAT_LIT
 
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> Expression
@@ -42,7 +46,7 @@
 /* Grammar section */
 
 Program
-    : { pushScope(); } GlobalStmtList { dumpScope(); }
+    : { Create_Table(); } GlobalStmtList { Dump_Table(); }
     | /* Empty file */
 ;
 
@@ -51,8 +55,7 @@ GlobalStmtList
     | GlobalStmt
 ;
 
-GlobalStmt
-    : DefineVariableStmt
+GlobalStmt : DefineVariableStmt
     | FunctionDefStmt
 ;
 
@@ -62,7 +65,7 @@ DefineVariableStmt
 
 /* Function */
 FunctionDefStmt
-    : VARIABLE_T IDENT '(' FunctionParameterStmtList ')' { createFunction($<var_type>1, $<s_var>2); } '{' '}' { dumpScope(); }
+    : VARIABLE_T IDENT '(' FunctionParameterStmtList ')' '{' '}' { Dump_Table(); }
 ;
 FunctionParameterStmtList 
     : FunctionParameterStmtList ',' FunctionParameterStmt
@@ -70,7 +73,7 @@ FunctionParameterStmtList
     | /* Empty function parameter */
 ;
 FunctionParameterStmt
-    : VARIABLE_T IDENT { pushFunParm($<var_type>1, $<s_var>2, VAR_FLAG_DEFAULT); }
+    : VARIABLE_T IDENT
 ;
 
 /* Scope */
@@ -80,13 +83,21 @@ StmtList
 ;
 Stmt
     : ';'
-    | COUT CoutParmListStmt ';' { stdoutPrint(); }
+    | COUT CoutParmListStmt ';'
     | RETURN Expression ';' { printf("RETURN\n"); }
 ;
 
 CoutParmListStmt
-    : CoutParmListStmt SHL Expression { pushFunInParm(&$<object_val>3); }
-    | SHL Expression { pushFunInParm(&$<object_val>2); }
+    : CoutParmListStmt SHL Expression
+    | SHL Expression
+;
+
+Expression
+    : Expression binary_op Expression
+;
+
+binary_op
+    : GTR
 ;
 
 %%

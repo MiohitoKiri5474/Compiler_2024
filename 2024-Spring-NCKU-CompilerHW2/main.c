@@ -1,14 +1,16 @@
+#include "main.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include "compiler_common.h"
 
-#include "main.h"
 
 #define debug printf("%s:%d: ############### debug\n", __FILE__, __LINE__)
 
-#define toupper(_char) (_char - (char)32)
-
-const char* objectTypeName[] = {
+#define toupper(_char) (_char - (char) 32)
+const char *objectTypeName[] = {
     [OBJECT_TYPE_UNDEFINED] = "undefined",
     [OBJECT_TYPE_VOID] = "void",
     [OBJECT_TYPE_INT] = "int",
@@ -18,96 +20,199 @@ const char* objectTypeName[] = {
     [OBJECT_TYPE_FUNCTION] = "function",
 };
 
-char* yyInputFileName;
+char *yyInputFileName;
 bool compileError;
 
 int indent = 0;
 int scopeLevel = -1;
 int funcLineNo = 0;
 int variableAddress = 0;
+int addr;
 ObjectType variableIdentType;
 
-void pushScope() {
+Table *symbol_table[1024];
+bool table_list[1024];
+Node *table_tmp[1024];
+int table_tmp_idx[1024];
+
+int max(int a, int b)
+{
+    return a > b ? a : b;
 }
 
-void dumpScope() {
+int Sz(Node *o)
+{
+    return o ? o->sz : 0;
 }
 
-Object* createVariable(ObjectType variableType, char* variableName, int variableFlag) {
-    return NULL;
+void up(Node **_o)
+{
+    Node *o = *_o;
+    o->sz = 1;
+    if (o->l) {
+        o->sz += o->l->sz;
+    }
+    if (o->r) {
+        o->sz += o->r->sz;
+    }
 }
 
-void pushFunParm(ObjectType variableType, char* variableName, int variableFlag) {
+Node *merge(Node *a, Node *b)
+{
+    if (!a || !b)
+        return a ? a : b;
+    if (a->pri < b->pri) {
+        a->r = merge(a->r, b);
+        up(&a);
+        return a;
+    }
+    b->l = merge(a, b->l);
+    up(&b);
+    return b;
 }
 
-void createFunction(ObjectType variableType, char* funcName) {
+Node *Create_Node(char *name, ObjectType type, char *func, int lineno)
+{
+    Node *res = (Node *) malloc(sizeof(Node));
+    int idx = scopeLevel - 1;
+    if (symbol_table[idx]) {
+        symbol_table[idx] = (Table *) malloc(sizeof(Table));
+        symbol_table[idx]->treap = NULL;
+        symbol_table[idx]->cnt = 0;
+    }
+    res->idx = Sz(symbol_table[idx]->treap) + 1;
+
+    res->type = type;
+    strcpy(res->name, name);
+    strcpy(res->func, func);
+    if (strlen(func) != 0)
+        res->addr = -1;
+    else {
+        res->addr = addr++;
+        res->lineno++;
+        strcpy(res->func, "-\0");
+    }
+    return res;
 }
 
-void debugPrintInst(char instc, Object* a, Object* b, Object* out) {
+Node *Insert_Head(Node *o, Node *n)
+{
+    return merge(o, n);
 }
 
-bool objectExpression(char op, Object* dest, Object* val, Object* out) {
-    return false;
+Node *Insert_Tail(Node *o, Node *n)
+{
+    return merge(n, o);
 }
 
-bool objectExpBinary(char op, Object* a, Object* b, Object* out) {
-    return false;
+void Insert_Node(Node *node)
+{
+    int idx = scopeLevel - 1;
+    printf("> Insert `%s` (addr: %d) to scope level %d\n", node->name,
+           node->addr, idx);
+    symbol_table[idx]->treap = Insert_Tail(symbol_table[idx]->treap, node);
 }
 
-bool objectExpBoolean(char op, Object* a, Object* b, Object* out) {
-    return false;
+Table *New_Table(void)
+{
+    Table *res = (Table *) malloc(sizeof(Table));
+    res->treap = NULL;
+    res->cnt = 0;
+    return res;
 }
 
-bool objectExpAssign(char op, Object* dest, Object* val, Object* out) {
-    return false;
+void Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
+{
+    int idx = scopeLevel - 1;
+    Node *tmp = NULL;
+    if (!table_list[idx])
+        table_tmp[table_tmp_idx[idx]++] = tmp;
+    else
+        Insert_Node(tmp);
 }
 
-bool objectValueAssign(Object* dest, Object* val, Object* out) {
-    return false;
+void Create_Table()
+{
+    table_list[++scopeLevel] = true;
+    printf("> Create symbol table (scope level %d)\n", scopeLevel);
+    symbol_table[scopeLevel] = New_Table();
+    if (table_tmp_idx[scopeLevel]) {
+        for (int i = 0; i < table_tmp_idx[scopeLevel]; i++) {
+            Insert_Node(table_tmp[i]);
+        }
+    }
 }
 
-bool objectNotBinaryExpression(Object* dest, Object* out) {
-    return false;
+void Dump_Table()
+{
+    int idx = scopeLevel - 1;
+    Node *tmp = symbol_table[idx]->treap;
+    printf(
+        "\n> Dump symbol table (scope level: "
+        "%d)\n%-10s%-10s%-10s%-10s%-10s%-10s\n",
+        idx, "Index", "Name", "Type", "Addr", "Lineno", "Func_sig");
+    dfs(&tmp);
+    table_tmp_idx[--scopeLevel] = 0;
+    table_list[scopeLevel] = false;
+    symbol_table[idx] = (Table *) malloc(sizeof(Table));
+    symbol_table[idx]->treap = NULL;
+    symbol_table[idx]->cnt = 0;
 }
 
-bool objectNegExpression(Object* dest, Object* out) {
-    return false;
-}
-bool objectNotExpression(Object* dest, Object* out) {
-    return false;
+void dfs(Node **_o)
+{
+    Node *o = *_o;
+    if (o->l)
+        dfs(&o->l);
+
+    printf("%-10d%-10s%-10s%-10d%-10d%-10s\n", o->idx, o->name,
+           get_type_name(o->type), o->addr, o->lineno, o->func);
+    if (o->r)
+        dfs(&o->r);
 }
 
-bool objectIncAssign(Object* a, Object* out) {
-    return false;
+char *get_type_name(ObjectType type)
+{
+    switch (type) {
+    case OBJECT_TYPE_UNDEFINED:
+        return "int";
+    case OBJECT_TYPE_AUTO:
+        return "auto";
+    case OBJECT_TYPE_VOID:
+        return "void";
+    case OBJECT_TYPE_CHAR:
+        return "char";
+    case OBJECT_TYPE_INT:
+        return "int";
+    case OBJECT_TYPE_LONG:
+        return "long";
+    case OBJECT_TYPE_FLOAT:
+        return "float";
+    case OBJECT_TYPE_DOUBLE:
+        return "double";
+    case OBJECT_TYPE_BOOL:
+        return "bool";
+    case OBJECT_TYPE_STR:
+        return "string";
+    case OBJECT_TYPE_FUNCTION:
+        return "function";
+
+    default:
+        return "undefined";
+    }
 }
 
-bool objectDecAssign(Object* a, Object* out) {
-    return false;
-}
-
-bool objectCast(ObjectType variableType, Object* dest, Object* out) {
-    return false;
-}
-
-Object* findVariable(char* variableName) {
-    Object* variable = NULL;
-    return variable;
-}
-
-void pushFunInParm(Object* variable) {
-}
-
-void stdoutPrint() {
-}
-
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
+    srand(clock());
     if (argc == 2) {
         yyin = fopen(yyInputFileName = argv[1], "r");
     } else {
         yyin = stdin;
     }
     if (!yyin) {
-        printf("file `%s` doesn't exists or cannot be opened\n", yyInputFileName);
+        printf("file `%s` doesn't exists or cannot be opened\n",
+               yyInputFileName);
         exit(1);
     }
 
