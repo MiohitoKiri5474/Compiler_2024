@@ -90,7 +90,7 @@ FunctionDefStmt
     } '{' StmtList '}' { Dump_Table(); }
 ;
 
-FunctionParameterStmtList 
+FunctionParameterStmtList
     : FunctionParameterStmtList ',' VARIABLE_T IDENT {
         char tmp[2];
         tmp[0] = get_type ( $3 ), tmp[1] = '\0';
@@ -165,7 +165,7 @@ Operand
 ;
 
 Literal
-    : INT_LIT {
+    : {} INT_LIT {
         $$.type = OBJECT_TYPE_INT;
         $$.i_var = atoi ( $<s_var>1 );
         printf ( "INT_LIT %d\n", $$.i_var );
