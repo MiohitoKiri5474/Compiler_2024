@@ -81,7 +81,7 @@ DefineVariableStmt
 FunctionDefStmt
     : VARIABLE_T IDENT {
         printf ( "func: %s\n", $<s_var>2 );
-        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno + 1 );
+        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
         char tmp[4];
@@ -96,15 +96,15 @@ FunctionParameterStmtList
         tmp[0] = get_type ( $3 ), tmp[1] = '\0';
         strcat ( $$, tmp );
 
-        Insert_Symbol ( $<s_var>4, $3, "", yylineno + 1 );
+        Insert_Symbol ( $<s_var>4, $3, "", yylineno - 1 );
     }
     | VARIABLE_T IDENT '[' ']' {
         $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
         $$[0] = '(';
         $$[1] = get_type ( $1 );
         $$[2] = '\0';
+        Insert_Symbol ( $<s_var>2, $1, "", yylineno - 1 );
 
-        Insert_Symbol ( $<s_var>2, $1, "", yylineno + 1 );
     }
     | VARIABLE_T IDENT {
         $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
@@ -112,7 +112,7 @@ FunctionParameterStmtList
         $$[1] = get_type ( $1 );
         $$[2] = '\0';
 
-        Insert_Symbol ( $<s_var>2, $1, "", yylineno + 1 );
+        Insert_Symbol ( $<s_var>2, $1, "", yylineno - 1 );
     }
 ;
 

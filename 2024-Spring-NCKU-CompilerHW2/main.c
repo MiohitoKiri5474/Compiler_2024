@@ -185,11 +185,11 @@ Node *Create_Node(char *name, ObjectType type, char *func, int lineno)
     res->type = type;
     strcpy(res->name, name);
     strcpy(res->func, func);
+    res->lineno++;
     if (strlen(func) != 0)
         res->addr = -1;
     else {
         res->addr = addr++;
-        res->lineno++;
         strcpy(res->func, "-\0");
     }
     return res;
