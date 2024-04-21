@@ -80,7 +80,6 @@ DefineVariableStmt
 /* Function */
 FunctionDefStmt
     : VARIABLE_T IDENT {
-        puts ( "111" );
         printf ( "func: %s\n", $<s_var>2 );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
         Create_Table();
