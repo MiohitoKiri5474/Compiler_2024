@@ -43,7 +43,7 @@
 
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> Expression
-%type <s_var> FuncOpen
+%type <s_var> FunctionDefStmt
 %type <s_var> FunctionParameterStmtList
 %type <object_val> PrimaryExpr
 %type <object_val> UnaryExpr
@@ -80,7 +80,9 @@ DefineVariableStmt
 
 /* Function */
 FunctionDefStmt
-    : FuncOpen {
+    : VARIABLE_T IDENT {
+        $$ = $<s_var>2;
+        printf ( "func: %s\n", $$ );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "(([Ljava/lang/String;)I", yylineno + 1 );
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
@@ -88,13 +90,6 @@ FunctionDefStmt
         tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
         strcat ( $5, tmp );
     } '{' StmtList '}' { Dump_Table(); }
-;
-
-FuncOpen
-    : VARIABLE_T IDENT {
-        $$ = $<s_var>2;
-        printf ( "func: %s\n", $$ );
-    }
 ;
 
 FunctionParameterStmtList 
