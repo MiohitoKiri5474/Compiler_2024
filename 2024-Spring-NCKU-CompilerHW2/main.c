@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
     while (scopeLevel)
         Dump_Table();
 
-    printf("Total lines: %d\n", yylineno - 1);
+    printf("Total lines: %d\n", yylineno);
     fclose(yyin);
 
     yylex_destroy();

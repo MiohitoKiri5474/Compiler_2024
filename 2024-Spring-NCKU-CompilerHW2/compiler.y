@@ -81,7 +81,7 @@ DefineVariableStmt
 FunctionDefStmt
     : VARIABLE_T IDENT {
         printf ( "func: %s\n", $<s_var>2 );
-        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "(([Ljava/lang/String;)I", yylineno + 1 );
+        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno + 1 );
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
         char tmp[4];
