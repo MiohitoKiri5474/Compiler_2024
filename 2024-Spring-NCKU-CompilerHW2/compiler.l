@@ -117,6 +117,7 @@ fnumber ({digit}*\.{digit}+)
 
 [ \t]+      { yycolumn += yyleng; }
 \r?\n       { yycolumn = 0; }
+\n          { Return(NEWLINE); }
 
 <<EOF>>     { 
                 static int once = 0;

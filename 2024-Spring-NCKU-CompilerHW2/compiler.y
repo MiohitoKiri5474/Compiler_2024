@@ -28,7 +28,7 @@
 }
 
 /* Token without return */
-%token COUT
+%token COUT NEWLINE
 %token SHR SHL BAN BOR BNT BXO ADD SUB MUL DIV REM NOT GTR LES GEQ LEQ EQL NEQ LAN LOR
 %token VAL_ASSIGN ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN REM_ASSIGN BAN_ASSIGN BOR_ASSIGN BXO_ASSIGN SHR_ASSIGN SHL_ASSIGN INC_ASSIGN DEC_ASSIGN
 %token IF ELSE FOR WHILE RETURN BREAK CONTINUE
@@ -80,6 +80,7 @@ DefineVariableStmt
 /* Function */
 FunctionDefStmt
     : VARIABLE_T IDENT {
+        puts ( "111" );
         printf ( "func: %s\n", $<s_var>2 );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
         Create_Table();
@@ -87,7 +88,17 @@ FunctionDefStmt
         char tmp[4];
         tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
         strcat ( $5, tmp );
-    } '{' StmtList '}' { Dump_Table(); }
+    } NEWLINE { yylineno++; } '{' StmtList '}' { Dump_Table(); }
+    | VARIABLE_T IDENT {
+        puts ( "222" );
+        printf ( "func: %s\n", $<s_var>2 );
+        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
+        Create_Table();
+    } '(' FunctionParameterStmtList ')' {
+        char tmp[4];
+        tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
+        strcat ( $5, tmp );
+    } '{' NEWLINE StmtList '}' { Dump_Table(); }
 ;
 
 FunctionParameterStmtList
