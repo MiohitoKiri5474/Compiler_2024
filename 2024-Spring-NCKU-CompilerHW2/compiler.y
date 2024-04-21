@@ -46,16 +46,17 @@
 /* Grammar section */
 
 Program
-    : { Create_Table(); } GlobalStmtList { Dump_Table(); }
+    : { Create_Table(); } GlobalStmtList
     | /* Empty file */
 ;
 
-GlobalStmtList 
+GlobalStmtList
     : GlobalStmtList GlobalStmt
     | GlobalStmt
 ;
 
-GlobalStmt : DefineVariableStmt
+GlobalStmt
+    : DefineVariableStmt
     | FunctionDefStmt
 ;
 
@@ -65,13 +66,26 @@ DefineVariableStmt
 
 /* Function */
 FunctionDefStmt
-    : VARIABLE_T IDENT '(' FunctionParameterStmtList ')' '{' '}' { Dump_Table(); }
+    : VARIABLE_T IDENT {
+        $$ = $<s_val>2;
+        printf ( "func: %s\n", $$ );
+    } '(' FunctionParameterStmtList ')' {
+        char tmp[4];
+        tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
+        strcat ( $3, tmp );
+        scopeLevel--;
+        Insert_Symbol ( $1, OBJECT_TYPE_FUNCTION, "(V)V", yylineno + 1 );
+    } '{' {
+        Create_Table();
+    } StmtList '}' { Dump_Table(); }
 ;
+
 FunctionParameterStmtList 
     : FunctionParameterStmtList ',' FunctionParameterStmt
     | FunctionParameterStmt
     | /* Empty function parameter */
 ;
+
 FunctionParameterStmt
     : VARIABLE_T IDENT
 ;
@@ -81,6 +95,7 @@ StmtList
     : StmtList Stmt
     | Stmt
 ;
+
 Stmt
     : ';'
     | COUT CoutParmListStmt ';'
