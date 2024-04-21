@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
 typedef enum _objectType {
     OBJECT_TYPE_UNDEFINED,

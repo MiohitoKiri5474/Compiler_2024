@@ -51,6 +51,11 @@ typedef struct _table {
     int cnt;
 } Table;
 
+typedef struct _treap {
+    struct _treap *l, *r;
+    char val[1024], sz, pri;
+} treap;
+
 int max(int, int);
 Node *New_Node(int, int);
 void up(Node **);
@@ -62,9 +67,22 @@ void Insert_Node(Node *);
 Table *New_Table(void);
 void Create_Table();
 void Dump_Table();
-void dfs(Node **o);
+void Print_Treap(Node **o);
 char *get_type_name(ObjectType);
+char get_type(ObjectType);
+void ScopeAddOne(void);
+void ScopeMinusOne(void);
+Node *Query_Symbol(char *);
+Node *dfs(Node **, char *);
 
-
+treap *New_treap(char *);
+int Sz_treap(treap *);
+void up_treap(treap **);
+treap *merge_treap(treap *, treap *);
+void Print_Cout(treap **);
+void Print_List(void);
+void Insert_Cout(char *);
+void Reset_treap(void);
+void Free_treap(treap **);
 
 #endif

@@ -16,7 +16,15 @@
     float f_var;
     char *s_var;
 
-    Object object_val;
+    struct {
+        union {
+            char *s_var;
+            bool b_var;
+            int i_var;
+            float f_var;
+        };
+        ObjectType type;
+    } object_val;
 }
 
 /* Token without return */
@@ -35,6 +43,12 @@
 
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> Expression
+%type <s_var> FunctionDefStmt
+%type <s_var> FunctionParameterStmtList
+%type <object_val> PrimaryExpr
+%type <object_val> UnaryExpr
+%type <object_val> Literal
+%type <object_val> Operand
 
 %left ADD SUB
 %left MUL DIV REM
@@ -67,48 +81,112 @@ DefineVariableStmt
 /* Function */
 FunctionDefStmt
     : VARIABLE_T IDENT {
-        $$ = $<s_val>2;
+        $$ = $<s_var>2;
         printf ( "func: %s\n", $$ );
+        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "(([Ljava/lang/String;)I", yylineno + 1 );
+        Create_Table();
     } '(' FunctionParameterStmtList ')' {
         char tmp[4];
         tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
-        strcat ( $3, tmp );
-        scopeLevel--;
-        Insert_Symbol ( $1, OBJECT_TYPE_FUNCTION, "(V)V", yylineno + 1 );
-    } '{' {
-        Create_Table();
-    } StmtList '}' { Dump_Table(); }
+        strcat ( $5, tmp );
+    } '{' StmtList '}' { Dump_Table(); }
 ;
 
 FunctionParameterStmtList 
-    : FunctionParameterStmtList ',' FunctionParameterStmt
-    | FunctionParameterStmt
-    | /* Empty function parameter */
-;
+    : FunctionParameterStmtList ',' VARIABLE_T IDENT {
+        char tmp[2];
+        tmp[0] = get_type ( $3 ), tmp[1] = '\0';
+        strcat ( $$, tmp );
 
-FunctionParameterStmt
-    : VARIABLE_T IDENT
+        Insert_Symbol ( $<s_var>4, $3, "", yylineno + 1 );
+    }
+    | VARIABLE_T IDENT '[' ']' {
+        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+        $$[0] = '(';
+        $$[1] = get_type ( $1 );
+        $$[2] = '\0';
+
+        Insert_Symbol ( $<s_var>2, $1, "", yylineno + 1 );
+    }
+    | VARIABLE_T IDENT {
+        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+        $$[0] = '(';
+        $$[1] = get_type ( $1 );
+        $$[2] = '\0';
+
+        Insert_Symbol ( $<s_var>2, $1, "", yylineno + 1 );
+    }
 ;
 
 /* Scope */
 StmtList 
-    : StmtList Stmt
+    : Stmt StmtList
     | Stmt
 ;
 
 Stmt
-    : ';'
-    | COUT CoutParmListStmt ';'
+    : COUT { Reset_treap(); } CoutParmListStmt ';' {
+        printf ( "cout " );
+        Print_List();
+    }
     | RETURN Expression ';' { printf("RETURN\n"); }
+    | ';'
 ;
 
 CoutParmListStmt
-    : CoutParmListStmt SHL Expression
-    | SHL Expression
+    : SHL Expression { Insert_Cout ( get_type_name ( $2.type ) ); } CoutParmListStmt
+    | SHL Expression { Insert_Cout ( get_type_name ( $2.type ) ); }
 ;
 
 Expression
     : Expression binary_op Expression
+    | UnaryExpr
+;
+
+UnaryExpr
+    : PrimaryExpr { $$.type = $1.type; }
+;
+
+PrimaryExpr
+    : Operand
+;
+
+Operand
+    : Literal
+    | IDENT {
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        if ( tmp ) {
+            $$.type = tmp -> type;
+            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        }
+        else if ( !strcmp ( "endl", $<s_var>1 ) ) {
+            $$.type = OBJECT_TYPE_STR;
+            puts ( "IDENT (name=endl, address=-1)" );
+        }
+    }
+;
+
+Literal
+    : INT_LIT {
+        $$.type = OBJECT_TYPE_INT;
+        $$.i_var = atoi ( $<s_var>1 );
+        printf ( "INT_LIT %d\n", $$.i_var );
+    }
+    | FLOAT_LIT {
+        $$.type = OBJECT_TYPE_FLOAT;
+        $$.f_var = atof ( $<s_var>1 );
+        printf ( "FLOAT_LIT %f\n", $$.f_var );
+    }
+    | BOOL_LIT {
+        $$.type = OBJECT_TYPE_BOOL;
+        $$.b_var = !strcmp ( $<s_var>1, "true" ) ? true : false;
+        printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
+    }
+    | STR_LIT {
+        $$.type = OBJECT_TYPE_STR;
+        $$.s_var = $<s_var>1;
+        printf ( "STR_LIT \"%s\"\n", $$.s_var );
+    }
 ;
 
 binary_op
