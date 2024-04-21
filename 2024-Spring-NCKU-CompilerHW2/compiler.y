@@ -88,17 +88,7 @@ FunctionDefStmt
         char tmp[4];
         tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
         strcat ( $5, tmp );
-    } NEWLINE { yylineno++; } '{' StmtList '}' { Dump_Table(); }
-    | VARIABLE_T IDENT {
-        puts ( "222" );
-        printf ( "func: %s\n", $<s_var>2 );
-        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
-        Create_Table();
-    } '(' FunctionParameterStmtList ')' {
-        char tmp[4];
-        tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
-        strcat ( $5, tmp );
-    } '{' NEWLINE StmtList '}' { Dump_Table(); }
+    } '{' StmtList '}' { Dump_Table(); }
 ;
 
 FunctionParameterStmtList
