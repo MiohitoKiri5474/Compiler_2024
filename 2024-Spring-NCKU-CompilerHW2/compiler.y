@@ -124,7 +124,7 @@ StmtList
 
 Stmt
     : COUT { Reset_treap(); } CoutParmListStmt ';' {
-        printf ( "cout " );
+        printf ( "cout" );
         Print_List();
     }
     | RETURN Expression ';' { printf("RETURN\n"); }

@@ -82,7 +82,7 @@ void Print_Cout(treap **_o)
     if (!o)
         return;
     Print_Cout(&o->l);
-    printf("%s ", o->val);
+    printf(" %s", o->val);
     Print_Cout(&o->r);
 }
 
@@ -250,7 +250,7 @@ void Dump_Table()
     Node *tmp = symbol_table[idx]->treap;
     printf(
         "\n> Dump symbol table (scope level: "
-        "%d)\n%-10s%-10s%-10s%-10s%-10s%-10s\n",
+        "%d)\n%-10s%-20s%-10s%-10s%-10s%-10s\n",
         idx, "Index", "Name", "Type", "Addr", "Lineno", "Func_sig");
     Print_Treap(&tmp);
     table_tmp_idx[--scopeLevel] = 0;
@@ -266,7 +266,7 @@ void Print_Treap(Node **_o)
     if (o->l)
         Print_Treap(&o->l);
 
-    printf("%-10d%-10s%-10s%-10d%-10d%-10s\n", o->idx, o->name,
+    printf("%-10d%-20s%-10s%-10d%-10d%-10s\n", o->idx, o->name,
            get_type_name(o->type), o->addr, o->lineno, o->func);
     if (o->r)
         Print_Treap(&o->r);
