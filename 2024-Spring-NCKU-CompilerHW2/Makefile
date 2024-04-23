@@ -52,4 +52,4 @@ judge-diff:
 	@/home/share/hw2/judge.sh --diff
 
 clean:
-	rm -rf ${BUILD}
+	rm -rf ${BUILD} result/
