@@ -35,6 +35,7 @@ bool table_list[1024];
 Node *table_tmp[1024];
 int table_tmp_idx[1024];
 treap *root;
+Stack *Expr_Stack;
 
 // treap for cout
 treap *New_treap(char *name)
@@ -93,19 +94,7 @@ void Insert_Cout(char *name)
 
 void Reset_treap(void)
 {
-    Free_treap(&root);
     root = NULL;
-}
-
-void Free_treap(treap **_o)
-{
-    treap *o = *_o;
-    if (!o)
-        return;
-    free(o->val);
-    Free_treap(&o->l);
-    Free_treap(&o->r);
-    free(o);
 }
 
 int Sz(Node *o)
@@ -318,6 +307,158 @@ void ScopeMinusOne(void)
 {
     scopeLevel--;
 }
+
+char *get_op_name(op_t op)
+{
+    switch (op) {
+    case OP_ADD:
+        return "ADD";
+    case OP_SUB:
+        return "SUB";
+    case OP_MUL:
+        return "MUL";
+    case OP_DIV:
+        return "DIV";
+    case OP_REM:
+        return "REM";
+    case OP_EQL:
+        return "EQL";
+    case OP_NEQ:
+        return "NEQ";
+    case OP_LES:
+        return "LES";
+    case OP_LEQ:
+        return "LEQ";
+    case OP_GTR:
+        return "GTR";
+    case OP_GEQ:
+        return "GEQ";
+    case OP_POS:
+        return "POS";
+    case OP_NEG:
+        return "NEG";
+    case OP_NOT:
+        return "NOT";
+    case OP_LOR:
+        return "LOR";
+    case OP_LAN:
+        return "LAN";
+    case OP_BOR:
+        return "BOR";
+    case OP_BAN:
+        return "BAN";
+    case OP_VAL_ASSIGN:
+        return "VAL_ASSIGN";
+    case OP_ADD_ASSIGN:
+        return "ADD_ASSIGN";
+    case OP_SUB_ASSIGN:
+        return "SUB_ASSIGN";
+    case OP_MUL_ASSIGN:
+        return "MUL_ASSIGN";
+    case OP_DIV_ASSIGN:
+        return "DIV_ASSIGN";
+    case OP_REM_ASSIGN:
+        return "REM_ASSIGN";
+    case OP_BAN_ASSIGN:
+        return "BAN_ASSIGN";
+    case OP_BOR_ASSIGN:
+        return "BOR_ASSIGN";
+    case OP_BXO_ASSIGN:
+        return "BXO_ASSIGN";
+    case OP_SHL_ASSIGN:
+        return "SHL_ASSIGN";
+    case OP_SHR_ASSIGN:
+        return "SHR_ASSIGN";
+    case OP_INC_ASSIGN:
+        return "INC_ASSIGN";
+    case OP_DEC_ASSIGN:
+        return "DEC_ASSIGN";
+    case OP_LSHIFT:
+        return "SHL";
+    case OP_RSHIFT:
+        return "SHR";
+    default:
+        return "unknown";
+    }
+}
+
+Stack *New_Stack(Stack_Val _val)
+{
+    Stack *res = (Stack *) malloc(sizeof(Stack));
+    res->value = _val;
+    res->sz = 1, res->pri = rand();
+    return res;
+}
+
+int Sz_Stack(Stack *o)
+{
+    return o ? o->sz : 0;
+}
+
+void up_Stack(Stack **_o)
+{
+    Stack *o = *_o;
+    o->sz = 1 + Sz_Stack(o->l) + Sz_Stack(o->r);
+}
+
+Stack *merge_Stack(Stack *a, Stack *b)
+{
+    if (!a || !b)
+        return a ? a : b;
+    if (a->pri < b->pri) {
+        a->r = merge_Stack(a->r, b);
+        up_Stack(&a);
+        return a;
+    }
+    b->l = merge_Stack(a, b->l);
+    up_Stack(&b);
+    return b;
+}
+
+void Print_Stack(void)
+{
+    __print_Stack(&Expr_Stack);
+}
+
+void __print_Stack(Stack **_o)
+{
+    Stack *o = *_o;
+    if (!o)
+        return;
+    __print_Stack(&o->l);
+    if (o->value.type == op)
+        printf("%s\n", get_op_name(o->value.ops));
+    else {
+        switch (o->value.val.type) {
+        case OBJECT_TYPE_INT:
+            printf("INT_LIT %d\n", o->value.val.i_var);
+            break;
+        case OBJECT_TYPE_STR:
+            printf("STR_LIT %s\n", o->value.val.s_var);
+            break;
+        case OBJECT_TYPE_BOOL:
+            printf("BOOL_LIT %s\n", (o->value.val.b_var ? "TRUE" : "FALSE"));
+            break;
+        case OBJECT_TYPE_FLOAT:
+            printf("FLOAT_LIT %f\n", o->value.val.f_var);
+            break;
+        default:
+            printf("norway");
+        }
+    }
+    __print_Stack(&o->r);
+}
+
+void Stack_Push(Stack_Val _val)
+{
+    Expr_Stack = merge_Stack(Expr_Stack, New_Stack(_val));
+}
+
+void Reset_Stack(void)
+{
+    Expr_Stack = NULL;
+}
+
 
 int main(int argc, char *argv[])
 {

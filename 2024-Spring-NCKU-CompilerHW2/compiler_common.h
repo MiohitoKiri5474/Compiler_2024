@@ -20,6 +20,42 @@ typedef enum _objectType {
     OBJECT_TYPE_FUNCTION,
 } ObjectType;
 
+typedef enum {
+    OP_ADD,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    OP_REM,
+    OP_EQL,
+    OP_NEQ,
+    OP_LES,
+    OP_LEQ,
+    OP_GTR,
+    OP_GEQ,
+    OP_POS,
+    OP_NEG,
+    OP_NOT,
+    OP_LOR,
+    OP_LAN,
+	OP_BOR,
+	OP_BAN,
+    OP_VAL_ASSIGN,
+    OP_ADD_ASSIGN,
+    OP_SUB_ASSIGN,
+    OP_MUL_ASSIGN,
+    OP_DIV_ASSIGN,
+    OP_REM_ASSIGN,
+    OP_BAN_ASSIGN,
+    OP_BOR_ASSIGN,
+    OP_BXO_ASSIGN,
+    OP_SHL_ASSIGN,
+    OP_SHR_ASSIGN,
+    OP_INC_ASSIGN,
+    OP_DEC_ASSIGN,
+	OP_LSHIFT,
+	OP_RSHIFT,
+} op_t;
+
 typedef struct _symbolData {
     char* name;
     int32_t index;

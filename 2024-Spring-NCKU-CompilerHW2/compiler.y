@@ -4,17 +4,23 @@
     #include "compiler_util.h"
     #include "main.h"
 
-    int yydebug = 1;
+    // int yydebug = 1;
+
+    int op_idx = 0;
+    bool is_neg = false, is_not = false;
+    op_t ops[1024];
 %}
 
 /* Variable or self-defined structure */
 %union {
     ObjectType var_type;
 
-    bool b_var;
+    char *s_var;
     int i_var;
     float f_var;
-    char *s_var;
+    bool b_var;
+
+    op_t op;
 
     struct {
         union {
@@ -36,10 +42,10 @@
 /* Token with return, which need to sepcify type */
 %token <var_type> VARIABLE_T
 %token <s_var> IDENT
-%token <i_var> INT_LIT
-%token <s_var> STR_LIT
-%token <b_var> BOOL_LIT
-%token <f_var> FLOAT_LIT
+%token <object_val> INT_LIT
+%token <s_car> STR_LIT
+%token <object_val> BOOL_LIT
+%token <object_val> FLOAT_LIT
 
 /* Nonterminal with return, which need to sepcify type */
 %type <object_val> Expression
@@ -48,6 +54,7 @@
 %type <object_val> UnaryExpr
 %type <object_val> Literal
 %type <object_val> Operand
+%type <op> add_op mul_op unary_op
 
 %left ADD SUB
 %left MUL DIV REM
@@ -137,12 +144,42 @@ CoutParmListStmt
 ;
 
 Expression
-    : Expression binary_op Expression
-    | UnaryExpr
+    : UnaryExpr { $$.type = $1.type; }
+    | Expression binary_op {
+        bool flag = false;
+        if ( ops[op_idx] == OP_MUL || ops[op_idx] == OP_DIV || ops[op_idx] == OP_REM ) {
+            flag = true;
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        }
+        if ( flag )
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        ops[++op_idx] = $<op>2;
+    } Expression {
+        while ( op_idx )
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+
+        if ( $<op>2 == OP_EQL || $<op>2 == OP_NEQ || $<op>2 == OP_LES || $<op>2 == OP_LEQ || $<op>2 == OP_GTR || $<op>2 == OP_GEQ )
+            $1.type = $4.type = OBJECT_TYPE_BOOL;
+
+        if ( $1.type == OBJECT_TYPE_BOOL || $4.type == OBJECT_TYPE_BOOL )
+            $$.type = OBJECT_TYPE_BOOL;
+        else if ( ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT ) )
+            $$.type = OBJECT_TYPE_FLOAT;
+        else
+            $$.type = OBJECT_TYPE_INT;
+    }
 ;
 
 UnaryExpr
     : PrimaryExpr { $$.type = $1.type; }
+    | unary_op UnaryExpr {
+        $$.type = $2.type;
+        if ( $$.type == OBJECT_TYPE_INT )
+			$$.i_var = ( $<op>1 == OP_POS ? $<object_val>2.i_var : -$<object_val>2.i_var );
+        else if ( $$.type == OBJECT_TYPE_FLOAT )
+			$$.f_var = ( $<op>1 == OP_POS ? $<object_val>2.f_var : -$<object_val>2.f_var );
+        printf ( "%s\n", get_op_name ( $<op>1 ) );
+    }
 ;
 
 PrimaryExpr
@@ -152,33 +189,34 @@ PrimaryExpr
 Operand
     : Literal
     | IDENT {
-        Node *tmp = Query_Symbol ( $<s_var>1 );
-        if ( tmp ) {
-            $$.type = tmp -> type;
-            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
-        }
-        else if ( !strcmp ( "endl", $<s_var>1 ) ) {
+        if ( !strcmp ( "endl", $<s_var>1 ) ) {
             $$.type = OBJECT_TYPE_STR;
             puts ( "IDENT (name=endl, address=-1)" );
         }
+        else {
+            Node *tmp = Query_Symbol ( $<s_var>1 );
+            if ( tmp ) {
+                $$.type = tmp -> type;
+                printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            }
+        }
     }
+    | '(' Expression ')' { $$.type = $2.type; }
 ;
 
 Literal
-    : {} INT_LIT {
+    : INT_LIT {
         $$.type = OBJECT_TYPE_INT;
-        $$.i_var = atoi ( $<s_var>1 );
+        $$.i_var = $<i_var>1;
         printf ( "INT_LIT %d\n", $$.i_var );
     }
     | FLOAT_LIT {
         $$.type = OBJECT_TYPE_FLOAT;
-        $$.f_var = atof ( $<s_var>1 );
+        $$.f_var = $<f_var>1;
         printf ( "FLOAT_LIT %f\n", $$.f_var );
     }
     | BOOL_LIT {
-        $$.type = OBJECT_TYPE_BOOL;
-        $$.b_var = !strcmp ( $<s_var>1, "true" ) ? true : false;
-        printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
+        $$.type = OBJECT_TYPE_BOOL; $$.b_var = $<b_var>1; printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
     }
     | STR_LIT {
         $$.type = OBJECT_TYPE_STR;
@@ -188,8 +226,48 @@ Literal
 ;
 
 binary_op
-    : GTR
+    : LOR {
+        while ( op_idx && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
+			printf ( "%s\n", get_op_name(ops[op_idx--] ) );
+        $<op>$ = OP_LOR;
+    }
+    | LAN {
+        while ( op_idx && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
+			printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        $<op>$ = OP_LAN;
+    }
+    | cmp_op
+    | add_op
+    | mul_op
 ;
 
+cmp_op
+    : EQL { $<op>$ = OP_EQL; }
+    | NEQ { $<op>$ = OP_NEQ; }
+    | LES { $<op>$ = OP_LES; }
+    | LEQ { $<op>$ = OP_LEQ; }
+    | GTR { $<op>$ = OP_GTR; }
+    | GEQ { $<op>$ = OP_GEQ; }
+;
+
+add_op
+    : ADD   { $<op>$ = OP_ADD; }
+    | SUB   { $<op>$ = OP_SUB; }
+	| BAN   { $<op>$ = OP_BAN; }
+	| BOR   { $<op>$ = OP_BOR; }
+;
+
+mul_op
+    : MUL   { $<op>$ = OP_MUL; }
+    | DIV   { $<op>$ = OP_DIV; }
+    | REM   { $<op>$ = OP_REM; }
+	| SHR   { $<op>$ = OP_RSHIFT; }
+;
+
+unary_op
+    : ADD   { $<op>$ = OP_POS; }
+    | SUB   { $<op>$ = OP_NEG; }
+    | NOT   { $<op>$ = OP_NOT; }
+;
 %%
 /* C code section */
