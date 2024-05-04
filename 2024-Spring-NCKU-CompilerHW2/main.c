@@ -35,7 +35,6 @@ bool table_list[1024];
 Node *table_tmp[1024];
 int table_tmp_idx[1024];
 treap *root;
-Stack *Expr_Stack;
 
 // treap for cout
 treap *New_treap(char *name)
@@ -310,6 +309,8 @@ void ScopeMinusOne(void)
 
 char *get_op_name(op_t op)
 {
+    if (op == OP_LBRA)
+        puts("???");
     switch (op) {
     case OP_ADD:
         return "ADD";
@@ -382,83 +383,31 @@ char *get_op_name(op_t op)
     }
 }
 
-Stack *New_Stack(Stack_Val _val)
+int get_op_priority(op_t op)
 {
-    Stack *res = (Stack *) malloc(sizeof(Stack));
-    res->value = _val;
-    res->sz = 1, res->pri = rand();
-    return res;
-}
-
-int Sz_Stack(Stack *o)
-{
-    return o ? o->sz : 0;
-}
-
-void up_Stack(Stack **_o)
-{
-    Stack *o = *_o;
-    o->sz = 1 + Sz_Stack(o->l) + Sz_Stack(o->r);
-}
-
-Stack *merge_Stack(Stack *a, Stack *b)
-{
-    if (!a || !b)
-        return a ? a : b;
-    if (a->pri < b->pri) {
-        a->r = merge_Stack(a->r, b);
-        up_Stack(&a);
-        return a;
+    switch (op) {
+    case OP_NOT:
+        return 5;
+    case OP_MUL:
+    case OP_DIV:
+    case OP_REM:
+        return 4;
+    case OP_ADD:
+    case OP_SUB:
+        return 3;
+    case OP_GTR:
+    case OP_LES:
+    case OP_LEQ:
+    case OP_GEQ:
+    case OP_NEQ:
+        return 2;
+    case OP_LAN:
+    case OP_LOR:
+        return 1;
+    default:
+        return -1;
     }
-    b->l = merge_Stack(a, b->l);
-    up_Stack(&b);
-    return b;
 }
-
-void Print_Stack(void)
-{
-    __print_Stack(&Expr_Stack);
-}
-
-void __print_Stack(Stack **_o)
-{
-    Stack *o = *_o;
-    if (!o)
-        return;
-    __print_Stack(&o->l);
-    if (o->value.type == op)
-        printf("%s\n", get_op_name(o->value.ops));
-    else {
-        switch (o->value.val.type) {
-        case OBJECT_TYPE_INT:
-            printf("INT_LIT %d\n", o->value.val.i_var);
-            break;
-        case OBJECT_TYPE_STR:
-            printf("STR_LIT %s\n", o->value.val.s_var);
-            break;
-        case OBJECT_TYPE_BOOL:
-            printf("BOOL_LIT %s\n", (o->value.val.b_var ? "TRUE" : "FALSE"));
-            break;
-        case OBJECT_TYPE_FLOAT:
-            printf("FLOAT_LIT %f\n", o->value.val.f_var);
-            break;
-        default:
-            printf("norway");
-        }
-    }
-    __print_Stack(&o->r);
-}
-
-void Stack_Push(Stack_Val _val)
-{
-    Expr_Stack = merge_Stack(Expr_Stack, New_Stack(_val));
-}
-
-void Reset_Stack(void)
-{
-    Expr_Stack = NULL;
-}
-
 
 int main(int argc, char *argv[])
 {

@@ -51,33 +51,14 @@ typedef struct _table {
     int cnt;
 } Table;
 
-typedef struct _treap {
-    struct _treap *l, *r;
-    char val[1024], sz, pri;
-} treap;
-
-typedef union _stack_val {
-    op_t ops;
-    struct {
-        union {
-            char *s_var;
-            bool b_var;
-            int i_var;
-            float f_var;
-        };
-        ObjectType type;
-    } val;
-    enum { op, data } type;
-} Stack_Val;
-
-typedef struct _stack {
-    struct _stack *l, *r;
-    int sz, pri;
-    Stack_Val value;
-} Stack;
-
 int max(int, int);
 char *get_op_name(op_t);
+char *get_type_name(ObjectType);
+int get_op_priority(op_t);
+char get_type(ObjectType);
+void ScopeAddOne(void);
+void ScopeMinusOne(void);
+
 Node *New_Node(int, int);
 void up(Node **);
 Node *merge(Node *, Node *);
@@ -89,12 +70,14 @@ Table *New_Table(void);
 void Create_Table();
 void Dump_Table();
 void Print_Treap(Node **o);
-char *get_type_name(ObjectType);
-char get_type(ObjectType);
-void ScopeAddOne(void);
-void ScopeMinusOne(void);
 Node *Query_Symbol(char *);
 Node *dfs(Node **, char *);
+
+typedef struct _treap {
+    struct _treap *l, *r;
+    char val[1024], sz, pri;
+} treap;
+
 
 treap *New_treap(char *);
 int Sz_treap(treap *);
@@ -104,14 +87,5 @@ void Print_Cout(treap **);
 void Print_List(void);
 void Insert_Cout(char *);
 void Reset_treap(void);
-
-Stack *New_Stack(Stack_Val);
-int Sz_Stack(Stack *);
-void up_Stack(Stack **);
-Stack *merge_Stack(Stack *, Stack *);
-void Print_Stack(void);
-void __print_Stack(Stack **);
-void Stack_Push(Stack_Val);
-void Reset_Stack(void);
 
 #endif

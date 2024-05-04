@@ -7,7 +7,7 @@
     // int yydebug = 1;
 
     int op_idx = 0;
-    bool is_neg = false, is_not = false;
+    bool is_bool = false, is_float = false;
     op_t ops[1024];
 %}
 
@@ -131,6 +131,7 @@ StmtList
 
 Stmt
     : COUT { Reset_treap(); } CoutParmListStmt ';' {
+        if ( op_idx ) printf ( "\then %d\n", op_idx );
         printf ( "cout" );
         Print_List();
     }
@@ -139,34 +140,68 @@ Stmt
 ;
 
 CoutParmListStmt
-    : SHL Expression { Insert_Cout ( get_type_name ( $2.type ) ); } CoutParmListStmt
-    | SHL Expression { Insert_Cout ( get_type_name ( $2.type ) ); }
+    : SHL Expression {
+        if ( is_bool ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_BOOL ) );
+            is_bool = false;
+        }
+        else if ( is_float ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_FLOAT ) );
+            is_float = false;
+        }
+        else
+            Insert_Cout ( get_type_name ( $2.type ) );
+    } CoutParmListStmt
+    | SHL Expression {
+        if ( is_bool ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_BOOL ) );
+            is_bool = false;
+        }
+        else if ( is_float ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_FLOAT ) );
+            is_float = false;
+        }
+        else
+            Insert_Cout ( get_type_name ( $2.type ) );
+    }
 ;
 
 Expression
     : UnaryExpr { $$.type = $1.type; }
     | Expression binary_op {
-        bool flag = false;
-        if ( ops[op_idx] == OP_MUL || ops[op_idx] == OP_DIV || ops[op_idx] == OP_REM ) {
-            flag = true;
-            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        // printf ( "\t%s\n", get_op_name ( $<op>2 ) );
+        if ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) {
+            while ( op_idx > 0 && get_op_priority ( $<op>2 ) < get_op_priority ( ops[op_idx] ) ) {
+                if ( ops[op_idx] == OP_LBRA ) {
+                    op_idx--;
+                    continue;
+                }
+                printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+            }
         }
-        if ( flag )
-            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        else {
+            while ( op_idx > 0 && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
+                if ( ops[op_idx] == OP_LBRA ) {
+                    op_idx--;
+                    continue;
+                }
+                printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+            }
+        }
         ops[++op_idx] = $<op>2;
     } Expression {
-        while ( op_idx )
+        while ( op_idx > 0 ) {
+            if ( ops[op_idx] == OP_LBRA ) {
+                op_idx--;
+                continue;
+            }
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
-
-        if ( $<op>2 == OP_EQL || $<op>2 == OP_NEQ || $<op>2 == OP_LES || $<op>2 == OP_LEQ || $<op>2 == OP_GTR || $<op>2 == OP_GEQ )
-            $1.type = $4.type = OBJECT_TYPE_BOOL;
+        }
 
         if ( $1.type == OBJECT_TYPE_BOOL || $4.type == OBJECT_TYPE_BOOL )
-            $$.type = OBJECT_TYPE_BOOL;
-        else if ( ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT ) )
-            $$.type = OBJECT_TYPE_FLOAT;
-        else
-            $$.type = OBJECT_TYPE_INT;
+            $$.type = OBJECT_TYPE_BOOL, is_bool = true, is_float = false;
+        else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
+            $$.type = OBJECT_TYPE_FLOAT, is_float = true;
     }
 ;
 
@@ -201,7 +236,17 @@ Operand
             }
         }
     }
-    | '(' Expression ')' { $$.type = $2.type; }
+    | '(' {
+        ops[++op_idx] = OP_LBRA;
+    } Expression ')' {
+        while ( op_idx ) {
+            if ( ops[op_idx] == OP_LBRA ) {
+                op_idx--;
+                break;
+            }
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        }
+    }
 ;
 
 Literal
@@ -216,7 +261,9 @@ Literal
         printf ( "FLOAT_LIT %f\n", $$.f_var );
     }
     | BOOL_LIT {
-        $$.type = OBJECT_TYPE_BOOL; $$.b_var = $<b_var>1; printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
+        $$.type = OBJECT_TYPE_BOOL;
+        $$.b_var = $<b_var>1;
+        printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
     }
     | STR_LIT {
         $$.type = OBJECT_TYPE_STR;
@@ -227,13 +274,13 @@ Literal
 
 binary_op
     : LOR {
-        while ( op_idx && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
-			printf ( "%s\n", get_op_name(ops[op_idx--] ) );
+        // while ( op_idx > 0 && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
+			// printf ( "5: %s\n", get_op_name(ops[op_idx--] ) );
         $<op>$ = OP_LOR;
     }
     | LAN {
-        while ( op_idx && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
-			printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        // while ( op_idx > 0 && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
+			// printf ( "6: %s\n", get_op_name ( ops[op_idx--] ) );
         $<op>$ = OP_LAN;
     }
     | cmp_op

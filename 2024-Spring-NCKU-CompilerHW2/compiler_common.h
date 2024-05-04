@@ -54,6 +54,8 @@ typedef enum {
     OP_DEC_ASSIGN,
 	OP_LSHIFT,
 	OP_RSHIFT,
+    OP_LBRA,
+    OP_RBRA,
 } op_t;
 
 typedef struct _symbolData {
