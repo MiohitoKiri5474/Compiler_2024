@@ -145,6 +145,7 @@ Stmt
     | DeclarationStmt
     | AssignmentStmt
     | IfStmt
+    | WhileStmt
 ;
 
 CoutParmListStmt
@@ -420,6 +421,10 @@ Condition
 
 Block
     : '{' { Create_Table(); } StmtList '}' { Dump_Table(); }
+;
+
+WhileStmt
+    : WHILE { if_flag = true; puts ( "WHILE" ); } Condition { if_flag = false; } Block
 ;
 %%
 /* C code section */
