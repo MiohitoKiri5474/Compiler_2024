@@ -9,7 +9,7 @@
     int op_idx = 0, arr_len = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
-    bool if_flag = false, couting = false;
+    bool if_flag = false, couting = false, first_argument;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 %}
@@ -95,6 +95,7 @@ FunctionDefStmt
         printf ( "func: %s\n", $<s_var>2 );
         bool tmp = !strcmp ( $2, "main" );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "func", yylineno + ( tmp ? 0 : 1 ) );
+        first_argument = true;
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
         char tmp[2];
@@ -112,9 +113,10 @@ FunctionParameterStmtList
     : FunctionParameterStmtList ',' VARIABLE_T IDENT {
         char tmp[2];
         tmp[0] = get_type ( $3 ), tmp[1] = '\0';
-        if ( strlen ( $$ ) == 0 ) {
+        if ( first_argument ) {
             $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
             $$[0] = '(';
+            first_argument = false;
         }
         if ( tmp[0] == 'S' )
             strcat ( $$, "Ljava/lang/String;" );
@@ -127,9 +129,10 @@ FunctionParameterStmtList
         char tmp[2];
         tmp[0] = get_type ( $1 );
         tmp[1] = '\0';
-        if ( strlen ( $$ ) == 0 ) {
+        if ( first_argument ) {
             $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
             $$[0] = '(';
+            first_argument = false;
         }
         if ( tmp[0] == 'S' )
             strcat ( $$, "[Ljava/lang/String;" );
@@ -141,9 +144,10 @@ FunctionParameterStmtList
     | VARIABLE_T IDENT {
         char tmp[2];
         tmp[0] = get_type ( $1 ), tmp[1] = '\0';
-        if ( strlen ( $$ ) == 0 ) {
+        if ( first_argument ) {
             $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
             $$[0] = '(';
+            first_argument = false;
         }
         if ( tmp[0] == 'S' )
             strcat ( $$, "Ljava/lang/String;" );
@@ -155,9 +159,10 @@ FunctionParameterStmtList
     | VARIABLE_T IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>4 ); } ']' {
         char tmp[2];
         tmp[0] = get_type ( $1 ), tmp[1] = '\0';
-        if ( strlen ( $$ ) == 0 ) {
+        if ( first_argument ) {
             $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
             $$[0] = '(';
+            first_argument = false;
         }
         if ( tmp[0] == 'S' )
             strcat ( $$, "Ljava/lang/String;" );
@@ -333,45 +338,33 @@ Operand
         }
     }
     | IDENT D1Array {
-        if ( !strcmp ( "endl", $<s_var>1 ) ) {
-            $$.type = OBJECT_TYPE_STR;
-            puts ( "IDENT (name=endl, address=-1)" );
-        }
-        else {
-            Node *tmp = Query_Symbol ( $<s_var>1 );
-            if ( tmp ) {
-                $$.type = tmp -> type;
-                if ( couting ) {
-                    if ( tmp -> type == OBJECT_TYPE_STR )
-                        is_str = true, is_bool = is_float = false;
-                    else if ( tmp -> type == OBJECT_TYPE_BOOL )
-                        is_bool = true, is_float = false;
-                    else if ( tmp -> type == OBJECT_TYPE_FLOAT )
-                        is_float = true;
-                }
-                printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        if ( tmp ) {
+            $$.type = tmp -> type;
+            if ( couting ) {
+                if ( tmp -> type == OBJECT_TYPE_STR )
+                    is_str = true, is_bool = is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                    is_bool = true, is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                    is_float = true;
             }
+            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         }
     }
     | IDENT D2Array {
-        if ( !strcmp ( "endl", $<s_var>1 ) ) {
-            $$.type = OBJECT_TYPE_STR;
-            puts ( "IDENT (name=endl, address=-1)" );
-        }
-        else {
-            Node *tmp = Query_Symbol ( $<s_var>1 );
-            if ( tmp ) {
-                $$.type = tmp -> type;
-                if ( couting ) {
-                    if ( tmp -> type == OBJECT_TYPE_STR )
-                        is_str = true, is_bool = is_float = false;
-                    else if ( tmp -> type == OBJECT_TYPE_BOOL )
-                        is_bool = true, is_float = false;
-                    else if ( tmp -> type == OBJECT_TYPE_FLOAT )
-                        is_float = true;
-                }
-                printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        if ( tmp ) {
+            $$.type = tmp -> type;
+            if ( couting ) {
+                if ( tmp -> type == OBJECT_TYPE_STR )
+                    is_str = true, is_bool = is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                    is_bool = true, is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                    is_float = true;
             }
+            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         }
     }
 ;
@@ -453,6 +446,9 @@ DeclarationStmt
         if ( $1 == OBJECT_TYPE_AUTO )
             is_auto = true;
     } DeclarationList ';' { is_auto = is_declare = false; }
+    | AUTO {
+        is_auto = true;
+    } DeclarationList ';' { is_auto = is_declare = false; }
 ;
 
 DeclarationList
@@ -481,7 +477,7 @@ D2Array
 ;
 
 D1Array
-    : '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>2 ); } ']'
+    : '[' Index ']'
 ;
 
 ListOfArray
@@ -581,5 +577,15 @@ ArgumentList
     | Expression ',' ArgumentList
 ;
 
+Index
+    : INT_LIT {
+        printf ( "INT_LIT %d\n", $<i_var>1 );
+    }
+    | IDENT {
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        if ( tmp )
+            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+    }
+;
 %%
 /* C code section */
