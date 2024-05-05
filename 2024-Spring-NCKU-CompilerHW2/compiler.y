@@ -347,7 +347,6 @@ DeclarationStmt
             IDENT_Pop();
         }
         Reset_IDENT();
-        yylineno--;
     }
     | VARIABLE_T IDENT VAL_ASSIGN Expression ';' {
         Insert_Symbol ( $2, $1, "", yylineno );
