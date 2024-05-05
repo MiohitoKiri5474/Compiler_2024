@@ -393,16 +393,8 @@ Literal
 ;
 
 binary_op
-    : LOR {
-        // while ( op_idx > 0 && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
-			// printf ( "5: %s\n", get_op_name(ops[op_idx--] ) );
-        $<op>$ = OP_LOR;
-    }
-    | LAN {
-        // while ( op_idx > 0 && ops[op_idx] != OP_LOR && ops[op_idx] != OP_LAN )
-			// printf ( "6: %s\n", get_op_name ( ops[op_idx--] ) );
-        $<op>$ = OP_LAN;
-    }
+    : LOR { $<op>$ = OP_LOR; }
+    | LAN { $<op>$ = OP_LAN; }
     | cmp_op
     | add_op
     | mul_op
