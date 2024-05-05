@@ -39,7 +39,7 @@
 }
 
 /* Token without return */
-%token COUT NEWLINE
+%token COUT NEWLINE AUTO
 %token SHR SHL BAN BOR BNT BXO ADD SUB MUL DIV REM NOT GTR LES GEQ LEQ EQL NEQ LAN LOR
 %token VAL_ASSIGN ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN REM_ASSIGN BAN_ASSIGN BOR_ASSIGN BXO_ASSIGN SHR_ASSIGN SHL_ASSIGN INC_ASSIGN DEC_ASSIGN
 %token IF ELSE FOR WHILE RETURN BREAK CONTINUE
@@ -94,19 +94,17 @@ FunctionDefStmt
     : VARIABLE_T IDENT {
         printf ( "func: %s\n", $<s_var>2 );
         bool tmp = !strcmp ( $2, "main" );
-        Insert_Symbol (
-            $2,
-            OBJECT_TYPE_FUNCTION,
-            ( tmp ?
-                "([Ljava/lang/String;)I" :
-                "(IILjava/lang/String;B)B" ),
-            yylineno + ( tmp ? 0 : 1 )
-        );
+        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "func", yylineno + ( tmp ? 0 : 1 ) );
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
-        char tmp[4];
-        tmp[0] = ')', tmp[1] = get_type ( $1 ), tmp[2] = '\0';
-        strcat ( $5, tmp );
+        char tmp[2];
+        tmp[0] = get_type ( $1 ), tmp[1] = '\0';
+        strcat ( $5, ")" );
+        if ( tmp[0] == 'S' )
+            strcat ( $5, "Ljava/lang/String;" );
+        else
+            strcat ( $5, tmp );
+        Update_Symbol ( $2, $5 );
     } '{' StmtList '}' { Dump_Table(); }
 ;
 
@@ -114,31 +112,58 @@ FunctionParameterStmtList
     : FunctionParameterStmtList ',' VARIABLE_T IDENT {
         char tmp[2];
         tmp[0] = get_type ( $3 ), tmp[1] = '\0';
-        strcat ( $$, tmp );
+        if ( strlen ( $$ ) == 0 ) {
+            $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+            $$[0] = '(';
+        }
+        if ( tmp[0] == 'S' )
+            strcat ( $$, "Ljava/lang/String;" );
+        else
+            strcat ( $$, tmp );
 
         Insert_Symbol ( $<s_var>4, $3, "", yylineno );
     }
     | VARIABLE_T IDENT '[' ']' {
-        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
-        $$[0] = '(';
-        $$[1] = get_type ( $1 );
-        $$[2] = '\0';
+        char tmp[2];
+        tmp[0] = get_type ( $1 );
+        tmp[1] = '\0';
+        if ( strlen ( $$ ) == 0 ) {
+            $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+            $$[0] = '(';
+        }
+        if ( tmp[0] == 'S' )
+            strcat ( $$, "[Ljava/lang/String;" );
+        else
+            strcat ( $$, tmp );
         Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
 
     }
     | VARIABLE_T IDENT {
-        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
-        $$[0] = '(';
-        $$[1] = get_type ( $1 );
-        $$[2] = '\0';
+        char tmp[2];
+        tmp[0] = get_type ( $1 ), tmp[1] = '\0';
+        if ( strlen ( $$ ) == 0 ) {
+            $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+            $$[0] = '(';
+        }
+        if ( tmp[0] == 'S' )
+            strcat ( $$, "Ljava/lang/String;" );
+        else
+            strcat ( $$, tmp );
 
         Insert_Symbol ( $<s_var>2, $1, "", yylineno );
     }
     | VARIABLE_T IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>4 ); } ']' {
-        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
-        $$[0] = '(';
-        $$[1] = get_type ( $1 );
-        $$[2] = '\0';
+        char tmp[2];
+        tmp[0] = get_type ( $1 ), tmp[1] = '\0';
+        if ( strlen ( $$ ) == 0 ) {
+            $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+            $$[0] = '(';
+        }
+        if ( tmp[0] == 'S' )
+            strcat ( $$, "Ljava/lang/String;" );
+        else
+            strcat ( $$, tmp );
+
         Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
 
     }
@@ -149,23 +174,24 @@ FunctionParameterStmtList
 StmtList 
     : Stmt StmtList
     | Stmt
-    | BREAK ';' { puts ( "BREAK" ); }
 ;
 
 Stmt
     : COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
-        // if ( op_idx ) printf ( "\then %d\n", op_idx );
         printf ( "cout" );
         Print_List();
         couting = false;
     }
-    | RETURN Expression ';' { printf("RETURN\n"); }
-    | ';'
+    | RETURN Expression ';' { puts ( "RETURN" ); }
+    | RETURN ';' { puts ( "RETURN" ); }
+    |';'
     | DeclarationStmt
-    | AssignmentStmt
     | IfStmt
+    | AssignmentStmt
     | WhileStmt
     | ForStmt
+    | BREAK ';' { puts ( "BREAK" ); }
+    | FuncCallStmt
 ;
 
 CoutParmListStmt
@@ -206,31 +232,29 @@ CoutParmListStmt
 Expression
     : UnaryExpr { $$.type = $1.type; }
     | Expression binary_op {
-        // printf ( "\t%s\n", get_op_name ( $<op>2 ) );
         if ( ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) && !if_flag ) {
-            while ( op_idx > 0 && get_op_priority ( $<op>2 ) < get_op_priority ( ops[op_idx] ) ) {
+            while ( op_idx && get_op_priority ( $<op>2 ) < get_op_priority ( ops[op_idx] ) ) {
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
-                    continue;
+                    break;
                 }
                 printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
             }
         }
         else {
-            while ( op_idx > 0 && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
+            while ( op_idx && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
-                    continue;
+                    break;
                 }
                 printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
             }
         }
         ops[++op_idx] = $<op>2;
     } Expression {
-        while ( op_idx > 0 ) {
+        while ( op_idx ) {
             if ( ops[op_idx] == OP_LBRA ) {
-                op_idx--;
-                continue;
+                break;
             }
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
@@ -492,12 +516,13 @@ assign_op
 
 IfStmt
     : IfCondition Block
+    | IfCondition Stmt
     | IfCondition Block ELSE { puts ( "ELSE" ); } Block
     | IfCondition Block ELSE { puts ( "ELSE" ); } IfStmt
 ;
 
 IfCondition
-    : { if_flag = true; } IF Condition { puts ( "IF" ); if_flag = false; }
+    : { if_flag = true; } IF '(' Condition ')' { puts ( "IF" ); if_flag = false; }
 ;
 
 Condition
@@ -516,20 +541,26 @@ ForStmt
     : FOR {
         puts ( "FOR" );
         Create_Table();
-    } '(' VARIABLE_T IDENT ':' IDENT {
-        Node *tmp = Query_Symbol ( $<s_var>7 );
-        Insert_Symbol ( $<s_var>5, ( $<var_type>4 == OBJECT_TYPE_AUTO ? tmp -> type : $<var_type>4 ), "", yylineno );
-        printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
-    } ')' '{' StmtList '}' { Dump_Table(); }
+    } ForIn '{' StmtList '}' { Dump_Table(); }
+;
 
-    | FOR {
-        puts ( "FOR" );
-        Create_Table();
-    } '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
+ForIn
+    : '(' AUTO IDENT ':' IDENT {
+        Node *tmp = Query_Symbol ( $<s_var>5 );
+        Insert_Symbol ( $<s_var>3, tmp -> type, "", yylineno );
+        printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+    } ')'
+    | '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
         while ( op_idx )
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
-    } ')' '{' StmtList '}' { Dump_Table(); }
+    } ')'
 ;
+
+ForDeclare
+    :  DeclarationStmt
+    | ';'
+;
+
 
 FuncCallStmt
     : IDENT '(' ')' {
@@ -545,13 +576,10 @@ FuncCallStmt
 ;
 
 ArgumentList
-    : Expression
+    : STR_LIT
+    | Expression
     | Expression ',' ArgumentList
 ;
 
-ForDeclare
-    : DeclarationStmt
-    | ';'
-;
 %%
 /* C code section */

@@ -132,6 +132,24 @@ Node *dfs(Node **_o, char *name)
     return NULL;
 }
 
+void Update_Symbol(char *name, char *value)
+{
+    int idx = 0;
+    update(&symbol_table[idx]->treap, name, value);
+}
+
+bool update(Node **_o, char *name, char *value)
+{
+    Node *o = *_o;
+    if (!o)
+        return false;
+    if (!strcmp(o->name, name)) {
+        strcpy(o->func, value);
+        return true;
+    }
+    return update(&o->l, name, value) || update(&o->r, name, value);
+}
+
 Node *merge(Node *a, Node *b)
 {
     if (!a || !b)
@@ -319,7 +337,7 @@ void ScopeMinusOne(void)
 char *get_op_name(op_t op)
 {
     if (op == OP_LBRA)
-        puts("???");
+        return "LBRA";
     switch (op) {
     case OP_ADD:
         return "ADD";

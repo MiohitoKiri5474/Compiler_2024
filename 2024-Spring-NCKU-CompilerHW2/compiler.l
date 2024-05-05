@@ -91,7 +91,7 @@ fnumber ({digit}*\.{digit}+)
 
 "cout"      { Return(COUT); }
 
-"auto"      { yylval.var_type = OBJECT_TYPE_AUTO; Return(VARIABLE_T); }
+"auto"      { Return(AUTO); }
 "void"      { yylval.var_type = OBJECT_TYPE_VOID; Return(VARIABLE_T); }
 "char"      { yylval.var_type = OBJECT_TYPE_CHAR; Return(VARIABLE_T); }
 "int"       { yylval.var_type = OBJECT_TYPE_INT; Return(VARIABLE_T); }

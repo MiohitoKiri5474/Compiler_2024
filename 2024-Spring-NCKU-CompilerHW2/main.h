@@ -41,7 +41,7 @@ typedef struct _node {
     struct _node *l, *r;
     int idx, addr, lineno;
     int sz, pri;
-    char name[32], func[32];
+    char name[1024], func[1024];
 
     ObjectType type;
 } Node;
@@ -66,6 +66,8 @@ Node *merge(Node *, Node *);
 Node *Insert_Head(Node *, Node *);
 Node *Insert_Tail(Node *, Node *);
 void Insert_Symbol(char *, ObjectType, char *, int);
+void Update_Symbol(char *, char *);
+bool update(Node **, char *, char *);
 void Insert_Node(Node *);
 Table *New_Table(void);
 void Create_Table();
