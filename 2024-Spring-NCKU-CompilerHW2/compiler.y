@@ -146,6 +146,7 @@ Stmt
     | AssignmentStmt
     | IfStmt
     | WhileStmt
+    | ForStmt
 ;
 
 CoutParmListStmt
@@ -387,6 +388,8 @@ AssignmentStmt
         while ( op_idx )
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
     }
+    | Operand INC_ASSIGN { ops[++op_idx] = OP_INC_ASSIGN; }
+    | Operand DEC_ASSIGN { ops[++op_idx] = OP_DEC_ASSIGN; }
 ;
 
 assign_op
@@ -401,8 +404,6 @@ assign_op
     | BXO_ASSIGN    { $<op>$ = OP_BXO_ASSIGN; }
     | SHR_ASSIGN    { $<op>$ = OP_SHR_ASSIGN; }
     | SHL_ASSIGN    { $<op>$ = OP_SHL_ASSIGN; }
-    | INC_ASSIGN    { $<op>$ = OP_INC_ASSIGN; }
-    | DEC_ASSIGN    { $<op>$ = OP_DEC_ASSIGN; }
 ;
 
 IfStmt
@@ -425,6 +426,22 @@ Block
 
 WhileStmt
     : WHILE { if_flag = true; puts ( "WHILE" ); } Condition { if_flag = false; } Block
+;
+
+ForStmt
+    : FOR {
+        puts ( "FOR" );
+        Create_Table();
+    } '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
+        while ( op_idx )
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+    } ')' '{' {
+    } StmtList '}' { Dump_Table(); }
+;
+
+ForDeclare
+    : DeclarationStmt
+    | ';'
 ;
 %%
 /* C code section */
