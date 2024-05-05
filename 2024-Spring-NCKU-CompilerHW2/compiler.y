@@ -6,7 +6,7 @@
 
     // int yydebug = 1;
 
-    int op_idx = 0;
+    int op_idx = 0, arr_len = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false;
     bool if_flag = false, couting = false;
@@ -134,6 +134,15 @@ FunctionParameterStmtList
 
         Insert_Symbol ( $<s_var>2, $1, "", yylineno );
     }
+    | VARIABLE_T IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>4 ); } ']' {
+        $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
+        $$[0] = '(';
+        $$[1] = get_type ( $1 );
+        $$[2] = '\0';
+        Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
+
+    }
+
 ;
 
 /* Scope */
@@ -285,9 +294,6 @@ Operand
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
             }
-            else {
-                puts ( "i dont know peko" );
-            }
         }
     }
     | '(' {
@@ -299,6 +305,27 @@ Operand
                 break;
             }
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        }
+    }
+    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); } ']' {
+        if ( !strcmp ( "endl", $<s_var>1 ) ) {
+            $$.type = OBJECT_TYPE_STR;
+            puts ( "IDENT (name=endl, address=-1)" );
+        }
+        else {
+            Node *tmp = Query_Symbol ( $<s_var>1 );
+            if ( tmp ) {
+                $$.type = tmp -> type;
+                if ( couting ) {
+                    if ( tmp -> type == OBJECT_TYPE_STR )
+                        is_str = true, is_bool = is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                        is_bool = true, is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                        is_float = true;
+                }
+                printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            }
         }
     }
 ;
@@ -394,7 +421,21 @@ DeclarationList
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
         // IDENT_Push ( $<s_var>1 );
     }
+    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); arr_len = 0; } ']' VAL_ASSIGN '{' ListOfArray '}' {
+        printf ( "create array: %d\n", arr_len );
+        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+    }
+    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); } ']' {
+        printf ( "create array: 0\n" );
+        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+    }
  ;
+
+ListOfArray
+    : Expression { arr_len++; }
+    | Expression ',' ListOfArray { arr_len++; }
+    | 
+;
 
 AssignmentStmt
     : Operand assign_op Expression {
