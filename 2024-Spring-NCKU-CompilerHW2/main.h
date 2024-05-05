@@ -56,6 +56,7 @@ char *get_op_name(op_t);
 char *get_type_name(ObjectType);
 int get_op_priority(op_t);
 char get_type(ObjectType);
+int Get_Level(void);
 void ScopeAddOne(void);
 void ScopeMinusOne(void);
 

@@ -9,6 +9,7 @@
     int op_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false;
+    bool if_flag = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 %}
@@ -143,6 +144,7 @@ Stmt
     | ';'
     | DeclarationStmt
     | AssignmentStmt
+    | IfStmt
 ;
 
 CoutParmListStmt
@@ -184,7 +186,7 @@ Expression
     : UnaryExpr { $$.type = $1.type; }
     | Expression binary_op {
         // printf ( "\t%s\n", get_op_name ( $<op>2 ) );
-        if ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) {
+        if ( ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) && !if_flag ) {
             while ( op_idx > 0 && get_op_priority ( $<op>2 ) < get_op_priority ( ops[op_idx] ) ) {
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
@@ -400,6 +402,24 @@ assign_op
     | SHL_ASSIGN    { $<op>$ = OP_SHL_ASSIGN; }
     | INC_ASSIGN    { $<op>$ = OP_INC_ASSIGN; }
     | DEC_ASSIGN    { $<op>$ = OP_DEC_ASSIGN; }
+;
+
+IfStmt
+    : IfCondition Block
+    | IfCondition Block ELSE { puts ( "ELSE" ); } Block
+    | IfCondition Block ELSE { puts ( "ELSE" ); } IfStmt
+;
+
+IfCondition
+    : { if_flag = true; } IF Condition { puts ( "IF" ); if_flag = false; }
+;
+
+Condition
+    : Expression
+;
+
+Block
+    : '{' { Create_Table(); } StmtList '}' { Dump_Table(); }
 ;
 %%
 /* C code section */

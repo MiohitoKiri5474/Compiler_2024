@@ -253,16 +253,21 @@ void Dump_Table()
     symbol_table[idx]->cnt = 0;
 }
 
+int Get_Level(void)
+{
+    return scopeLevel;
+}
+
 void Print_Treap(Node **_o)
 {
     Node *o = *_o;
-    if (o->l)
-        Print_Treap(&o->l);
+    if (!o)
+        return;
+    Print_Treap(&o->l);
 
     printf("%-10d%-20s%-10s%-10d%-10d%-10s\n", o->idx, o->name,
            get_type_name(o->type), o->addr, o->lineno, o->func);
-    if (o->r)
-        Print_Treap(&o->r);
+    Print_Treap(&o->r);
 }
 
 char *get_type_name(ObjectType type)
@@ -408,6 +413,7 @@ int get_op_priority(op_t op)
     case OP_LEQ:
     case OP_GEQ:
     case OP_NEQ:
+    case OP_EQL:
         return 3;
     case OP_LAN:
     case OP_LOR:
