@@ -8,6 +8,8 @@
 
     int op_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
+    bool is_cast = false, is_declare = false;
+    ObjectType cast_type, declare_type;
     op_t ops[1024];
 %}
 
@@ -215,6 +217,14 @@ Expression
         else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
             $$.type = OBJECT_TYPE_FLOAT, is_float = true;
     }
+    | '(' VARIABLE_T {
+        is_cast = true;
+        cast_type = $<var_type>2;
+    } ')' Expression {
+        $<s_var>$ = $<s_var>5;
+        $$.type = $<var_type>2;
+        is_float = is_str = is_bool = false;
+    }
 ;
 
 UnaryExpr
@@ -230,7 +240,12 @@ UnaryExpr
 ;
 
 PrimaryExpr
-    : Operand
+    : Operand {
+        if ( is_cast ) {
+            printf ( "Cast to %s\n", get_type_name ( cast_type ) );
+            is_cast = false;
+        }
+    }
 ;
 
 Operand
@@ -341,26 +356,27 @@ unary_op
 ;
 
 DeclarationStmt
-    : VARIABLE_T DeclarationList ';' {
-        while ( !IDENT_Empty() ) {
-            Insert_Symbol ( IDENT_front(), $1, "", yylineno );
-            IDENT_Pop();
-        }
-        Reset_IDENT();
-    }
-    | VARIABLE_T IDENT VAL_ASSIGN Expression ';' {
-        Insert_Symbol ( $2, $1, "", yylineno );
-    }
+    : VARIABLE_T {
+        is_declare = true;
+        declare_type = $1;
+    } DeclarationList ';' { is_declare = false; }
 ;
 
 DeclarationList
-    : IDENT {
-        IDENT_Push ( $<s_var>1 );
-    } ',' DeclarationList
-    | IDENT {
-        IDENT_Push ( $<s_var>1 );
-    }
+    : DeclarationIDENT ',' DeclarationList
+    | DeclarationIDENT
 ;
+
+ DeclarationIDENT
+    : IDENT {
+        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        // IDENT_Push ( $<s_var>1 );
+    }
+    | IDENT VAL_ASSIGN Expression {
+        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        // IDENT_Push ( $<s_var>1 );
+    }
+ ;
 
 AssignmentStmt
     : Operand assign_op Expression {
