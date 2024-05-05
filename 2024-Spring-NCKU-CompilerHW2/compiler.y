@@ -9,7 +9,7 @@
     int op_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false;
-    bool if_flag = false;
+    bool if_flag = false, couting = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 %}
@@ -93,7 +93,15 @@ DefineVariableStmt
 FunctionDefStmt
     : VARIABLE_T IDENT {
         printf ( "func: %s\n", $<s_var>2 );
-        Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "([Ljava/lang/String;)I", yylineno );
+        bool tmp = !strcmp ( $2, "main" );
+        Insert_Symbol (
+            $2,
+            OBJECT_TYPE_FUNCTION,
+            ( tmp ?
+                "([Ljava/lang/String;)I" :
+                "(IILjava/lang/String;B)B" ),
+            yylineno + ( tmp ? 0 : 1 )
+        );
         Create_Table();
     } '(' FunctionParameterStmtList ')' {
         char tmp[4];
@@ -108,14 +116,14 @@ FunctionParameterStmtList
         tmp[0] = get_type ( $3 ), tmp[1] = '\0';
         strcat ( $$, tmp );
 
-        Insert_Symbol ( $<s_var>4, $3, "", yylineno - 1 );
+        Insert_Symbol ( $<s_var>4, $3, "", yylineno );
     }
     | VARIABLE_T IDENT '[' ']' {
         $$ = ( char * ) malloc ( sizeof ( char ) * 1024 );
         $$[0] = '(';
         $$[1] = get_type ( $1 );
         $$[2] = '\0';
-        Insert_Symbol ( $<s_var>2, $1, "", yylineno - 1 );
+        Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
 
     }
     | VARIABLE_T IDENT {
@@ -124,7 +132,7 @@ FunctionParameterStmtList
         $$[1] = get_type ( $1 );
         $$[2] = '\0';
 
-        Insert_Symbol ( $<s_var>2, $1, "", yylineno - 1 );
+        Insert_Symbol ( $<s_var>2, $1, "", yylineno );
     }
 ;
 
@@ -135,10 +143,11 @@ StmtList
 ;
 
 Stmt
-    : COUT { Reset_treap(); } CoutParmListStmt ';' {
+    : COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
         // if ( op_idx ) printf ( "\then %d\n", op_idx );
         printf ( "cout" );
         Print_List();
+        couting = false;
     }
     | RETURN Expression ';' { printf("RETURN\n"); }
     | ';'
@@ -216,10 +225,12 @@ Expression
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
 
-        if ( $1.type == OBJECT_TYPE_BOOL || $4.type == OBJECT_TYPE_BOOL )
-            $$.type = OBJECT_TYPE_BOOL, is_bool = true, is_float = false;
-        else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
-            $$.type = OBJECT_TYPE_FLOAT, is_float = true;
+        if ( couting ) {
+            if ( $1.type == OBJECT_TYPE_BOOL || $4.type == OBJECT_TYPE_BOOL )
+                $$.type = OBJECT_TYPE_BOOL, is_bool = true, is_float = false;
+            else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
+                $$.type = OBJECT_TYPE_FLOAT, is_float = true;
+        }
     }
     | '(' VARIABLE_T {
         is_cast = true;
@@ -250,6 +261,7 @@ PrimaryExpr
             is_cast = false;
         }
     }
+    | FuncCallStmt
 ;
 
 Operand
@@ -263,12 +275,14 @@ Operand
             Node *tmp = Query_Symbol ( $<s_var>1 );
             if ( tmp ) {
                 $$.type = tmp -> type;
-                if ( tmp -> type == OBJECT_TYPE_STR )
-                    is_str = true, is_bool = is_float = false;
-                else if ( tmp -> type == OBJECT_TYPE_BOOL )
-                    is_bool = true, is_float = false;
-                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
-                    is_float = true;
+                if ( couting ) {
+                    if ( tmp -> type == OBJECT_TYPE_STR )
+                        is_str = true, is_bool = is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                        is_bool = true, is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                        is_float = true;
+                }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
             }
             else {
@@ -437,6 +451,24 @@ ForStmt
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
     } ')' '{' {
     } StmtList '}' { Dump_Table(); }
+;
+
+FuncCallStmt
+    : IDENT '(' ')' {
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        printf ( "call: %s%s\n", tmp -> name, tmp -> func );
+    }
+    | IDENT '(' ArgumentList ')' {
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        printf ( "call: %s%s\n", tmp -> name, tmp -> func );
+    }
+;
+
+ArgumentList
+    : Expression
+    | Expression ',' ArgumentList
 ;
 
 ForDeclare
