@@ -75,9 +75,9 @@ Node *dfs(Node **, char *);
 
 typedef struct _treap {
     struct _treap *l, *r;
-    char val[1024], sz, pri;
+    char val[32];
+    int sz, pri;
 } treap;
-
 
 treap *New_treap(char *);
 int Sz_treap(treap *);
@@ -87,5 +87,17 @@ void Print_Cout(treap **);
 void Print_List(void);
 void Insert_Cout(char *);
 void Reset_treap(void);
+
+typedef struct _ident_list {
+    struct _ident_list *next, *prev;
+    char name[32];
+} IDENT_List;
+
+IDENT_List *New_IDENT(char *);
+void Reset_IDENT(void);
+void IDENT_Push(char *);
+void IDENT_Pop(void);
+char *IDENT_front(void);
+bool IDENT_Empty(void);
 
 #endif

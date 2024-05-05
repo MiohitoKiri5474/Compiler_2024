@@ -39,6 +39,8 @@ typedef enum {
     OP_LAN,
 	OP_BOR,
 	OP_BAN,
+    OP_BNT,
+    OP_BXO,
     OP_VAL_ASSIGN,
     OP_ADD_ASSIGN,
     OP_SUB_ASSIGN,

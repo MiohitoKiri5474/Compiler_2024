@@ -35,6 +35,7 @@ bool table_list[1024];
 Node *table_tmp[1024];
 int table_tmp_idx[1024];
 treap *root;
+IDENT_List *IDENT_head = NULL, *IDENT_tail = NULL;
 
 // treap for cout
 treap *New_treap(char *name)
@@ -107,9 +108,11 @@ void up(Node **_o)
     o->sz = 1;
     if (o->l) {
         o->sz += o->l->sz;
+        up(&o->l);
     }
     if (o->r) {
         o->sz += o->r->sz;
+        up(&o->r);
     }
 }
 
@@ -120,8 +123,7 @@ Node *dfs(Node **_o, char *name)
         return NULL;
     if (!strcmp(o->name, name))
         return o;
-    Node *tmp;
-    tmp = dfs(&o->l, name);
+    Node *tmp = dfs(&o->l, name);
     if (tmp)
         return tmp;
     tmp = dfs(&o->r, name);
@@ -148,9 +150,9 @@ Node *Query_Symbol(char *name)
 {
     int idx = scopeLevel - 1;
     while (idx >= 0) {
-        Node *tmp = symbol_table[idx]->treap;
-        tmp = dfs(&tmp, name);
-        if (!tmp)
+        Node *tmp;
+        tmp = dfs(&symbol_table[idx]->treap, name);
+        if (tmp)
             return tmp;
         idx--;
     }
@@ -213,7 +215,9 @@ Table *New_Table(void)
 void Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
 {
     int idx = scopeLevel - 1;
-    Node *tmp = Create_Node(name, type, func, lineno);
+    Node *tmp = Create_Node(
+        name, type, func,
+        lineno - (!strcmp(name, "argv") || !strcmp(name, "main") ? 0 : 1));
     if (!table_list[idx])
         table_tmp[table_tmp_idx[idx]++] = tmp;
     else
@@ -348,8 +352,12 @@ char *get_op_name(op_t op)
         return "BOR";
     case OP_BAN:
         return "BAN";
+    case OP_BNT:
+        return "BNT";
+    case OP_BXO:
+        return "BXO";
     case OP_VAL_ASSIGN:
-        return "VAL_ASSIGN";
+        return "EQL_ASSIGN";
     case OP_ADD_ASSIGN:
         return "ADD_ASSIGN";
     case OP_SUB_ASSIGN:
@@ -387,26 +395,81 @@ int get_op_priority(op_t op)
 {
     switch (op) {
     case OP_NOT:
-        return 5;
+        return 6;
     case OP_MUL:
     case OP_DIV:
     case OP_REM:
-        return 4;
+        return 5;
     case OP_ADD:
     case OP_SUB:
-        return 3;
+        return 4;
     case OP_GTR:
     case OP_LES:
     case OP_LEQ:
     case OP_GEQ:
     case OP_NEQ:
-        return 2;
+        return 3;
     case OP_LAN:
     case OP_LOR:
+        return 2;
+    case OP_VAL_ASSIGN:
+    case OP_ADD_ASSIGN:
+    case OP_SUB_ASSIGN:
+    case OP_MUL_ASSIGN:
+    case OP_DIV_ASSIGN:
+    case OP_REM_ASSIGN:
+    case OP_BAN_ASSIGN:
+    case OP_BOR_ASSIGN:
+    case OP_BXO_ASSIGN:
+    case OP_SHL_ASSIGN:
+    case OP_SHR_ASSIGN:
+    case OP_INC_ASSIGN:
+    case OP_DEC_ASSIGN:
         return 1;
     default:
         return -1;
     }
+}
+
+IDENT_List *New_IDENT(char *name)
+{
+    IDENT_List *res = (IDENT_List *) malloc(sizeof(IDENT_List));
+    strcpy(res->name, name);
+    return res;
+}
+
+void Reset_IDENT(void)
+{
+    IDENT_head = (IDENT_List *) malloc(sizeof(IDENT_List));
+    IDENT_tail = IDENT_head;
+}
+
+void IDENT_Push(char *name)
+{
+    if (!IDENT_head)
+        Reset_IDENT();
+    IDENT_List *ins = New_IDENT(name);
+    IDENT_tail->next = ins;
+    ins->prev = IDENT_tail;
+    IDENT_tail = ins;
+}
+
+void IDENT_Pop(void)
+{
+    IDENT_head->next->prev = NULL;
+    IDENT_head = IDENT_head->next;
+}
+
+char *IDENT_front(void)
+{
+    if (!IDENT_head->next)
+        return "";
+    return IDENT_head->next->name;
+}
+
+bool IDENT_Empty(void)
+{
+    return IDENT_head == IDENT_tail;
 }
 
 int main(int argc, char *argv[])

@@ -7,7 +7,7 @@
     // int yydebug = 1;
 
     int op_idx = 0;
-    bool is_bool = false, is_float = false;
+    bool is_bool = false, is_float = false, is_str = false;
     op_t ops[1024];
 %}
 
@@ -29,6 +29,8 @@
             int i_var;
             float f_var;
         };
+
+        char *name;
         ObjectType type;
     } object_val;
 }
@@ -48,8 +50,8 @@
 %token <object_val> FLOAT_LIT
 
 /* Nonterminal with return, which need to sepcify type */
-%type <object_val> Expression
 %type <s_var> FunctionParameterStmtList
+%type <object_val> Expression
 %type <object_val> PrimaryExpr
 %type <object_val> UnaryExpr
 %type <object_val> Literal
@@ -131,17 +133,23 @@ StmtList
 
 Stmt
     : COUT { Reset_treap(); } CoutParmListStmt ';' {
-        if ( op_idx ) printf ( "\then %d\n", op_idx );
+        // if ( op_idx ) printf ( "\then %d\n", op_idx );
         printf ( "cout" );
         Print_List();
     }
     | RETURN Expression ';' { printf("RETURN\n"); }
     | ';'
+    | DeclarationStmt
+    | AssignmentStmt
 ;
 
 CoutParmListStmt
     : SHL Expression {
-        if ( is_bool ) {
+        if ( is_str ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_STR ) );
+            is_str = false;
+        }
+        else if ( is_bool ) {
             Insert_Cout ( get_type_name ( OBJECT_TYPE_BOOL ) );
             is_bool = false;
         }
@@ -153,7 +161,11 @@ CoutParmListStmt
             Insert_Cout ( get_type_name ( $2.type ) );
     } CoutParmListStmt
     | SHL Expression {
-        if ( is_bool ) {
+        if ( is_str ) {
+            Insert_Cout ( get_type_name ( OBJECT_TYPE_STR ) );
+            is_str = false;
+        }
+        else if ( is_bool ) {
             Insert_Cout ( get_type_name ( OBJECT_TYPE_BOOL ) );
             is_bool = false;
         }
@@ -232,7 +244,16 @@ Operand
             Node *tmp = Query_Symbol ( $<s_var>1 );
             if ( tmp ) {
                 $$.type = tmp -> type;
+                if ( tmp -> type == OBJECT_TYPE_STR )
+                    is_str = true, is_bool = is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                    is_bool = true, is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                    is_float = true;
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            }
+            else {
+                puts ( "i dont know peko" );
             }
         }
     }
@@ -289,12 +310,12 @@ binary_op
 ;
 
 cmp_op
-    : EQL { $<op>$ = OP_EQL; }
-    | NEQ { $<op>$ = OP_NEQ; }
-    | LES { $<op>$ = OP_LES; }
-    | LEQ { $<op>$ = OP_LEQ; }
-    | GTR { $<op>$ = OP_GTR; }
-    | GEQ { $<op>$ = OP_GEQ; }
+    : EQL   { $<op>$ = OP_EQL; }
+    | NEQ   { $<op>$ = OP_NEQ; }
+    | LES   { $<op>$ = OP_LES; }
+    | LEQ   { $<op>$ = OP_LEQ; }
+    | GTR   { $<op>$ = OP_GTR; }
+    | GEQ   { $<op>$ = OP_GEQ; }
 ;
 
 add_op
@@ -302,6 +323,7 @@ add_op
     | SUB   { $<op>$ = OP_SUB; }
 	| BAN   { $<op>$ = OP_BAN; }
 	| BOR   { $<op>$ = OP_BOR; }
+    | BXO   { $<op>$ = OP_BXO; }
 ;
 
 mul_op
@@ -315,6 +337,54 @@ unary_op
     : ADD   { $<op>$ = OP_POS; }
     | SUB   { $<op>$ = OP_NEG; }
     | NOT   { $<op>$ = OP_NOT; }
+    | BNT   { $<op>$ = OP_BNT; }
+;
+
+DeclarationStmt
+    : VARIABLE_T DeclarationList ';' {
+        while ( !IDENT_Empty() ) {
+            Insert_Symbol ( IDENT_front(), $1, "", yylineno );
+            IDENT_Pop();
+        }
+        Reset_IDENT();
+        yylineno--;
+    }
+    | VARIABLE_T IDENT VAL_ASSIGN Expression ';' {
+        Insert_Symbol ( $2, $1, "", yylineno );
+    }
+;
+
+DeclarationList
+    : IDENT {
+        IDENT_Push ( $<s_var>1 );
+    } ',' DeclarationList
+    | IDENT {
+        IDENT_Push ( $<s_var>1 );
+    }
+;
+
+AssignmentStmt
+    : Operand assign_op Expression {
+        ops[++op_idx] = $<op>2;
+        while ( op_idx )
+            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+    }
+;
+
+assign_op
+    : VAL_ASSIGN    { $<op>$ = OP_VAL_ASSIGN; }
+    | ADD_ASSIGN    { $<op>$ = OP_ADD_ASSIGN; }
+    | SUB_ASSIGN    { $<op>$ = OP_SUB_ASSIGN; }
+    | MUL_ASSIGN    { $<op>$ = OP_MUL_ASSIGN; }
+    | DIV_ASSIGN    { $<op>$ = OP_DIV_ASSIGN; }
+    | REM_ASSIGN    { $<op>$ = OP_REM_ASSIGN; }
+    | BOR_ASSIGN    { $<op>$ = OP_BOR_ASSIGN; }
+    | BAN_ASSIGN    { $<op>$ = OP_BAN_ASSIGN; }
+    | BXO_ASSIGN    { $<op>$ = OP_BXO_ASSIGN; }
+    | SHR_ASSIGN    { $<op>$ = OP_SHR_ASSIGN; }
+    | SHL_ASSIGN    { $<op>$ = OP_SHL_ASSIGN; }
+    | INC_ASSIGN    { $<op>$ = OP_INC_ASSIGN; }
+    | DEC_ASSIGN    { $<op>$ = OP_DEC_ASSIGN; }
 ;
 %%
 /* C code section */
