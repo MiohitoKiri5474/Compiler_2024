@@ -308,7 +308,28 @@ Operand
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
     }
-    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); } ']' {
+    | IDENT D1Array {
+        if ( !strcmp ( "endl", $<s_var>1 ) ) {
+            $$.type = OBJECT_TYPE_STR;
+            puts ( "IDENT (name=endl, address=-1)" );
+        }
+        else {
+            Node *tmp = Query_Symbol ( $<s_var>1 );
+            if ( tmp ) {
+                $$.type = tmp -> type;
+                if ( couting ) {
+                    if ( tmp -> type == OBJECT_TYPE_STR )
+                        is_str = true, is_bool = is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                        is_bool = true, is_float = false;
+                    else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                        is_float = true;
+                }
+                printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            }
+        }
+    }
+    | IDENT D2Array {
         if ( !strcmp ( "endl", $<s_var>1 ) ) {
             $$.type = OBJECT_TYPE_STR;
             puts ( "IDENT (name=endl, address=-1)" );
@@ -415,22 +436,29 @@ DeclarationList
     | DeclarationIDENT
 ;
 
- DeclarationIDENT
+DeclarationIDENT
     : IDENT {
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
     }
     | IDENT VAL_ASSIGN Expression {
         Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
     }
-    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); arr_len = 0; } ']' VAL_ASSIGN '{' ListOfArray '}' {
+    | IDENT D2Array {
+        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+    }
+    | IDENT D1Array { arr_len = 0; } VAL_ASSIGN '{' ListOfArray '}' {
         printf ( "create array: %d\n", arr_len );
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
     }
-    | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); } ']' {
-        printf ( "create array: 0\n" );
-        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
-    }
- ;
+;
+
+D2Array
+    : D1Array D1Array
+;
+
+D1Array
+    : '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>2 ); } ']'
+;
 
 ListOfArray
     : Expression { arr_len++; }
