@@ -149,6 +149,7 @@ FunctionParameterStmtList
 StmtList 
     : Stmt StmtList
     | Stmt
+    | BREAK ';' { puts ( "BREAK" ); }
 ;
 
 Stmt
@@ -487,11 +488,19 @@ ForStmt
     : FOR {
         puts ( "FOR" );
         Create_Table();
+    } '(' VARIABLE_T IDENT ':' IDENT {
+        Node *tmp = Query_Symbol ( $<s_var>7 );
+        Insert_Symbol ( $<s_var>5, ( $<var_type>4 == OBJECT_TYPE_AUTO ? tmp -> type : $<var_type>4 ), "", yylineno );
+        printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+    } ')' '{' StmtList '}' { Dump_Table(); }
+
+    | FOR {
+        puts ( "FOR" );
+        Create_Table();
     } '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
         while ( op_idx )
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
-    } ')' '{' {
-    } StmtList '}' { Dump_Table(); }
+    } ')' '{' StmtList '}' { Dump_Table(); }
 ;
 
 FuncCallStmt
