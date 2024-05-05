@@ -8,7 +8,7 @@
 
     int op_idx = 0, arr_len = 0;
     bool is_bool = false, is_float = false, is_str = false;
-    bool is_cast = false, is_declare = false;
+    bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
@@ -404,7 +404,9 @@ DeclarationStmt
     : VARIABLE_T {
         is_declare = true;
         declare_type = $1;
-    } DeclarationList ';' { is_declare = false; }
+        if ( $1 == OBJECT_TYPE_AUTO )
+            is_auto = true;
+    } DeclarationList ';' { is_auto = is_declare = false; }
 ;
 
 DeclarationList
@@ -415,11 +417,9 @@ DeclarationList
  DeclarationIDENT
     : IDENT {
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
-        // IDENT_Push ( $<s_var>1 );
     }
     | IDENT VAL_ASSIGN Expression {
-        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
-        // IDENT_Push ( $<s_var>1 );
+        Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
     }
     | IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>3 ); arr_len = 0; } ']' VAL_ASSIGN '{' ListOfArray '}' {
         printf ( "create array: %d\n", arr_len );
