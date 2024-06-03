@@ -124,7 +124,13 @@ FunctionDefStmt
         ScopeAddOne();
         codeRaw ( ".limit stack 128" );
         codeRaw ( ".limit locals 128\n" );
-    } '{' StmtList '}' { Dump_Table(); }
+    } '{' StmtList '}' {
+        if ( !is_return )
+            codeRaw ( "return" );
+        is_return = false;
+        Dump_Table();
+        codeRaw ( ".end method" );
+    }
 ;
 
 FunctionParameterStmtList
@@ -207,12 +213,12 @@ Stmt
     }
     | RETURN { is_return = true; } Expression ';' {
         puts ( "RETURN" );
-        codeRaw ( "return\n.end method" );
-        is_return = false;
+        codeRaw ( "return\n" );
     }
     | RETURN ';' {
         puts ( "RETURN" );
-        codeRaw ( "return\n.end method" );
+        codeRaw ( "return\n" );
+        is_return = true;
     }
     |';'
     | DeclarationStmt
