@@ -64,4 +64,4 @@ run:
 	@cd ${BUILD_OUT} && java ${EXEC}
 
 clean:
-	rm -rf ${BUILD} *.j
+	rm -rf ${BUILD} *.j *.jar *.class
