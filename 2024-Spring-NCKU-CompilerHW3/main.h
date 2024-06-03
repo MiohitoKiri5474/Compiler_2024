@@ -60,6 +60,7 @@ void Dump_Table();
 void Print_Treap(Node **o);
 Node *Query_Symbol(char *);
 Node *dfs(Node **, char *);
+void c_exp_update(int);
 
 typedef struct _treap {
     struct _treap *l, *r;

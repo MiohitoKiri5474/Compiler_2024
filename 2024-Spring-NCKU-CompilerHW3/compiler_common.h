@@ -91,6 +91,4 @@ typedef struct _object {
 extern int yylineno;
 extern int funcLineNo;
 
-
-
 #endif /* COMPILER_COMMON_H */

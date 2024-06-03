@@ -64,6 +64,7 @@ int scopeLevel = 0;
 int funcLineNo = 0;
 int variableAddress = 0;
 int addr;
+int c_exp;
 ObjectType variableIdentType;
 
 Table *symbol_table[1024];
@@ -378,6 +379,62 @@ char *get_print_type(ObjectType type)
 char get_type(ObjectType type)
 {
     return (char) (get_type_name(type)[0] - 'a' + 'A');
+}
+
+void get_op_inst(char *buf, ObjectType type, op_t op)
+{
+    char tmp[16];
+    int idx = 0;
+    buf[0] = get_type_name(type)[0], idx = 1;
+    if (type == -1 || op == OP_EQL || op == OP_NEQ || op == OP_LES ||
+        op == OP_LEQ || op == OP_GTR || op == OP_NEQ || op == OP_LOR ||
+        op == OP_LAN)
+        idx = 0;
+
+    switch (op) {
+    case OP_DIV:
+    case OP_DIV_ASSIGN:
+        strcpy(tmp, "DIV");
+        break;
+    case OP_LOR:
+        strcpy(tmp, "IOR");
+        break;
+    case OP_LAN:
+        strcpy(tmp, "IAND");
+        break;
+    case OP_EQL:
+        strcpy(tmp, "IF_ICMPEQ");
+        break;
+    case OP_NEQ:
+        strcpy(tmp, "IF_ICMPNE");
+        break;
+    case OP_LES:
+        strcpy(tmp, "IF_ICMPLT");
+        break;
+    case OP_LEQ:
+        strcpy(tmp, "IF_ICMPLE");
+        break;
+    case OP_GTR:
+        strcpy(tmp, (type == OBJECT_TYPE_INT || type == OBJECT_TYPE_BOOL
+                         ? (c_exp ? "IFGT" : "IF_ICMGT")
+                         : "fcmpg"));
+        break;
+    case OP_GEQ:
+        strcpy(tmp, "IF_ICMPGE");
+        break;
+    default:
+        strcpy(tmp, get_op_name(op));
+    }
+
+    for (int i = 0; i < strlen(tmp); i++)
+        buf[idx + i] =
+            ('A' <= tmp[i] && tmp[i] <= 'Z' ? (char) tmp[i] + 32 : tmp[i]);
+    buf[strlen(tmp) + idx] = '\0';
+}
+
+void c_exp_update(int n)
+{
+    c_exp = n;
 }
 
 void ScopeAddOne(void)

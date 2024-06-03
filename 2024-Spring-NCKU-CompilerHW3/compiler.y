@@ -206,10 +206,11 @@ StmtList
 ;
 
 Stmt
-    : COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
+    : { c_exp_update ( 1 ); }COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
         printf ( "cout" );
         Print_List();
         couting = false;
+        c_exp_update ( 0 );
     }
     | RETURN { is_return = true; } Expression ';' {
         puts ( "RETURN" );
