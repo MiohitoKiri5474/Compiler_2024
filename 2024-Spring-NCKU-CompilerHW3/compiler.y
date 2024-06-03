@@ -9,6 +9,7 @@
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument;
+    bool is_return = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 %}
@@ -115,10 +116,13 @@ FunctionDefStmt
         Update_Symbol ( $2, $5 );
 
         ScopeMinusOne();
-        code ( ".method public statuc %s%s", $2, $5 );
-        codeRaw ( ".limit stack 128" );
-        codeRaw ( ".limit locals 128" );
+        if ( !strcmp ( $2, "main" ) )
+        	codeRaw ( ".method public static main([Ljava/lang/String;)V\n" );
+        else
+			code ( ".method public statis %s()V\n", $1 );
         ScopeAddOne();
+        codeRaw ( ".limit stack 128" );
+        codeRaw ( ".limit locals 128\n" );
     } '{' StmtList '}' { Dump_Table(); }
 ;
 
@@ -189,7 +193,7 @@ FunctionParameterStmtList
 ;
 
 /* Scope */
-StmtList 
+StmtList
     : Stmt StmtList
     | Stmt
 ;
@@ -200,9 +204,10 @@ Stmt
         Print_List();
         couting = false;
     }
-    | RETURN Expression ';' {
+    | RETURN { is_return = true; } Expression ';' {
         puts ( "RETURN" );
         codeRaw ( "return\n.end method" );
+        is_return = false;
     }
     | RETURN ';' {
         puts ( "RETURN" );
@@ -253,6 +258,9 @@ CoutParmListStmt
         }
         else
             Insert_Cout ( get_type_name ( $2.type ) );
+        codeRaw ( "getstatic java/lang/System/out Ljava/io/PrintStream;" );
+        codeRaw ( "swap" );
+        code ( "invokevirtual java/io/PrintStream/print(%s)V", get_print_type ( $2.type ));
     }
 ;
 
@@ -331,6 +339,7 @@ Operand
         if ( !strcmp ( "endl", $<s_var>1 ) ) {
             $$.type = OBJECT_TYPE_STR;
             puts ( "IDENT (name=endl, address=-1)" );
+            codeRaw ( "ldc \"\\n\"" );
         }
         else {
             Node *tmp = Query_Symbol ( $<s_var>1 );
@@ -396,25 +405,33 @@ Literal
         $$.type = OBJECT_TYPE_INT;
         $$.i_var = $<i_var>1;
         printf ( "INT_LIT %d\n", $$.i_var );
-        code ( "ldc %d", $$.i_var );
+        if ( !is_return ) {
+            code ( "ldc %d", $$.i_var );
+        }
     }
     | FLOAT_LIT {
         $$.type = OBJECT_TYPE_FLOAT;
         $$.f_var = $<f_var>1;
         printf ( "FLOAT_LIT %f\n", $$.f_var );
-        code ( "ldc %f", $$.f_var );
+        if ( !is_return ) {
+            code ( "ldc %f", $$.f_var );
+        }
     }
     | BOOL_LIT {
         $$.type = OBJECT_TYPE_BOOL;
         $$.b_var = $<b_var>1;
         printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
-        code ( "ldc %d", $$.b_var );
+        if ( !is_return ) {
+            code ( "ldc %d", $$.b_var );
+        }
     }
     | STR_LIT {
         $$.type = OBJECT_TYPE_STR;
         $$.s_var = $<s_var>1;
         printf ( "STR_LIT \"%s\"\n", $$.s_var );
-        code ( "ldc %s", $$.s_var );
+        if ( !is_return ) {
+            code ( "ldc \"%s\"", $$.s_var );
+        }
     }
 ;
 

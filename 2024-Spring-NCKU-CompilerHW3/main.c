@@ -576,7 +576,7 @@ int main(int argc, char *argv[])
 
     codeRaw(".source hw3.j");
     codeRaw(".class public Main");
-    codeRaw(".super java/lang/Object");
+    codeRaw(".super java/lang/Object\n");
     scopeLevel = -1;
 
     yyparse();
