@@ -368,6 +368,8 @@ char *get_print_type(ObjectType type)
         return "Ljava/lang/String;";
     case OBJECT_TYPE_FUNCTION:
         return "func";
+    case OBJECT_TYPE_CHAR:
+        return "Ljava/lang/String;";
     default:
         return "ERROR";
     }

@@ -32,6 +32,7 @@
             bool b_var;
             int i_var;
             float f_var;
+            char c_var;
         };
 
         char *name;
@@ -431,6 +432,14 @@ Literal
         printf ( "STR_LIT \"%s\"\n", $$.s_var );
         if ( !is_return ) {
             code ( "ldc \"%s\"", $$.s_var );
+        }
+    }
+    | CHAR_LIT {
+        $$.type = OBJECT_TYPE_CHAR;
+        $$.c_var = $<c_var>1;
+        printf ( "CHAR_LIT %c\n", $$.c_var );
+        if ( !is_return ) {
+            code ( "ldc \"%c\"", $$.c_var );
         }
     }
 ;
