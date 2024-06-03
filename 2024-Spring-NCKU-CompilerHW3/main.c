@@ -65,6 +65,8 @@ int funcLineNo = 0;
 int variableAddress = 0;
 int addr;
 int c_exp;
+int if_status;
+int bf_cnt = 0;
 ObjectType variableIdentType;
 
 Table *symbol_table[1024];
@@ -313,6 +315,11 @@ int Get_Level(void)
     return scopeLevel;
 }
 
+void if_status_update(int _stt)
+{
+    if_status = _stt;
+}
+
 void Print_Treap(Node **_o)
 {
     Node *o = *_o;
@@ -360,7 +367,9 @@ char *get_print_type(ObjectType type)
 {
     switch (type) {
     case OBJECT_TYPE_INT:
+    case OBJECT_TYPE_LONG:
         return "I";
+    case OBJECT_TYPE_DOUBLE:
     case OBJECT_TYPE_FLOAT:
         return "F";
     case OBJECT_TYPE_BOOL:
@@ -371,6 +380,8 @@ char *get_print_type(ObjectType type)
         return "func";
     case OBJECT_TYPE_CHAR:
         return "Ljava/lang/String;";
+    case OBJECT_TYPE_UNDEFINED:
+        return "Z";
     default:
         return "ERROR";
     }
@@ -381,6 +392,24 @@ char get_type(ObjectType type)
     return (char) (get_type_name(type)[0] - 'a' + 'A');
 }
 
+void print_buffer(char *buffer)
+{
+    if (buffer[0] == 'i' && buffer[1] == 'f' && buffer[2] == '_') {
+        puts("\t\tmeow");
+        code("%s L_cmp_%d", buffer, bf_cnt++);
+        codeRaw("ldc 1");
+        code("goto L_cmp_%d", bf_cnt++);
+        scopeLevel--;
+        code("L_cmp_%d:", bf_cnt - 2);
+        scopeLevel++;
+        codeRaw("ldc 0");
+        scopeLevel--;
+        code("L_cmp_%d:", bf_cnt - 1);
+        scopeLevel++;
+    } else
+        code("%s", buffer);
+}
+
 void get_op_inst(char *buf, ObjectType type, op_t op)
 {
     char tmp[16];
@@ -388,8 +417,9 @@ void get_op_inst(char *buf, ObjectType type, op_t op)
     buf[0] = get_type_name(type)[0], idx = 1;
     if (type == -1 || op == OP_EQL || op == OP_NEQ || op == OP_LES ||
         op == OP_LEQ || op == OP_GTR || op == OP_NEQ || op == OP_LOR ||
-        op == OP_LAN)
+        op == OP_LAN) {
         idx = 0;
+    }
 
     switch (op) {
     case OP_DIV:
@@ -404,23 +434,31 @@ void get_op_inst(char *buf, ObjectType type, op_t op)
         break;
     case OP_EQL:
         strcpy(tmp, "IF_ICMPEQ");
+        // strcpy(tmp, (if_status ? "IF_ICMLE" : "icmle"));
         break;
     case OP_NEQ:
         strcpy(tmp, "IF_ICMPNE");
+        // strcpy(tmp, (if_status ? "IF_ICMNE" : "icmne"));
         break;
     case OP_LES:
-        strcpy(tmp, "IF_ICMPLT");
+        strcpy(tmp, (type == OBJECT_TYPE_FLOAT ? "fcmpl" : "IF_ICMPLT"));
+        // strcpy(tmp, (if_status ? "IF_ICMLT" : "icmlt"));
         break;
     case OP_LEQ:
         strcpy(tmp, "IF_ICMPLE");
+        // strcpy(tmp, (if_status ? "IF_ICMLE" : "icmle"));
         break;
     case OP_GTR:
-        strcpy(tmp, (type == OBJECT_TYPE_INT || type == OBJECT_TYPE_BOOL
-                         ? (c_exp ? "IFGT" : "IF_ICMGT")
-                         : "fcmpg"));
+        strcpy(tmp, (type == OBJECT_TYPE_FLOAT ? "fcmpg" : "IF_ICMPGT"));
+        // strcpy(tmp, (if_status ? "IF_ICMGT" : "icmpg"));
         break;
     case OP_GEQ:
         strcpy(tmp, "IF_ICMPGE");
+        // strcpy(tmp, (if_status ? "IF_ICMGE" : "icmge"));
+        break;
+    case OP_NOT:
+        strcpy(tmp, "iconst_m1");
+        idx = 0;
         break;
     default:
         strcpy(tmp, get_op_name(op));
@@ -525,6 +563,29 @@ char *get_op_name(op_t op)
     default:
         return "unknown";
     }
+}
+
+char *get_ls_name(ObjectType type, int inst)
+{
+    switch (type) {
+    case OBJECT_TYPE_INT:
+        return !inst ? "iload" : "istore";
+    case OBJECT_TYPE_FLOAT:
+        return !inst ? "fload" : "fstore";
+    case OBJECT_TYPE_BOOL:
+        return !inst ? "iload" : "istore";
+    case OBJECT_TYPE_STR:
+        return !inst ? "aload" : "astore";
+    case OBJECT_TYPE_FUNCTION:
+        return "func";
+    default:
+        return "ERROR";
+    }
+}
+
+int get_c_exp(void)
+{
+    return c_exp;
 }
 
 int get_op_priority(op_t op)

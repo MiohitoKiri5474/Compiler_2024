@@ -5,13 +5,16 @@
 
     int yydebug = 1;
 
-    int op_idx = 0, arr_len = 0;
+    int op_idx = 0, arr_len = 0, lb_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument;
     bool is_return = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
+
+    char buffer[128];
+    char assign[128];
 %}
 
 /* Variable or self-defined structure */
@@ -120,7 +123,7 @@ FunctionDefStmt
         if ( !strcmp ( $2, "main" ) )
         	codeRaw ( ".method public static main([Ljava/lang/String;)V\n" );
         else
-			code ( ".method public statis %s()V\n", $1 );
+			code ( ".method public statis %s()V\n", $2 );
         ScopeAddOne();
         codeRaw ( ".limit stack 128" );
         codeRaw ( ".limit locals 128\n" );
@@ -249,7 +252,7 @@ CoutParmListStmt
             Insert_Cout ( get_type_name ( $2.type ) );
         codeRaw ( "getstatic java/lang/System/out Ljava/io/PrintStream;" );
         codeRaw ( "swap" );
-        code ( "invokevirtual java/io/PrintStream/print(%s)V", get_print_type ( $2.type ));
+        code ( "invokevirtual java/io/PrintStream/print(%s)V\n", get_print_type ( $2.type ));
     } CoutParmListStmt
     | SHL Expression {
         if ( is_str ) {
@@ -268,24 +271,39 @@ CoutParmListStmt
             Insert_Cout ( get_type_name ( $2.type ) );
         codeRaw ( "getstatic java/lang/System/out Ljava/io/PrintStream;" );
         codeRaw ( "swap" );
-        code ( "invokevirtual java/io/PrintStream/print(%s)V", get_print_type ( $2.type ));
+        code ( "invokevirtual java/io/PrintStream/print(%s)V\n", get_print_type ( $2.type ));
     }
 ;
 
 Expression
-    : UnaryExpr { $$.type = $1.type; }
+    : UnaryExpr {
+        $$.type = $1.type;
+    }
     | Expression binary_op {
         if ( ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) && !if_flag ) {
             while ( op_idx && get_op_priority ( $<op>2 ) < get_op_priority ( ops[op_idx] ) ) {
+                get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
                 if ( ops[op_idx] == OP_LBRA ) {
+                    print_buffer ( buffer );
                     op_idx--;
                     break;
                 }
+                if ( $<object_val>1.type == OBJECT_TYPE_FLOAT )
+                    print_buffer ( buffer );
+                else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                         ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                         ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                    print_buffer ( buffer );
+                }
+                else
+                    print_buffer ( buffer );
                 printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
             }
         }
         else {
             while ( op_idx && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
+                get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
+                print_buffer ( buffer );
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
                     break;
@@ -295,10 +313,66 @@ Expression
         }
         ops[++op_idx] = $<op>2;
     } Expression {
+        $$.type = $4.type;
+        bool pass = false;
         while ( op_idx ) {
-            if ( ops[op_idx] == OP_LBRA ) {
+            if ( ops[op_idx] == OP_LBRA )
                 break;
+            if ( ops[op_idx] == OP_REM && ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT ) ) {
+                // has error, skip
             }
+            else if ( ( $1.type == OBJECT_TYPE_INT || $1.type == OBJECT_TYPE_FLOAT ) && ( $4.type == OBJECT_TYPE_INT || $4.type == OBJECT_TYPE_FLOAT ) && $1.type != $4.type ) {
+                pass = true;
+                $$.type = $1.type;
+            }
+            else if ( ( ops[op_idx] == OP_LAN || ops[op_idx] == OP_LOR ) && ( $1.type == OBJECT_TYPE_BOOL || $4.type != OBJECT_TYPE_BOOL ) ) {
+                // has error, skip
+            }
+
+            if ( ops[op_idx] != OP_VAL_ASSIGN ) {
+                get_op_inst ( buffer, $$.type, ops[op_idx] );
+                if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                     ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                     ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                    if ( !get_c_exp() )
+                        code ( "%s Label_%d", buffer, lb_idx );
+                }
+                // else
+                    // print_buffer ( buffer );
+            }
+            else {
+                Node *tmp = Query_Symbol ( assign );
+                code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
+            }
+            if ( !pass ) {
+                if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                     ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                     ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ )
+                    $$.type = OBJECT_TYPE_BOOL;
+
+                if ( $1.type == OBJECT_TYPE_BOOL || $4.type == OBJECT_TYPE_BOOL ) {
+                    switch ( ops[op_idx] ) {
+                    case OP_LES:
+                    case OP_LEQ:
+                    case OP_GEQ:
+                    case OP_GTR:
+                    case OP_NEQ:
+                    case OP_EQL:
+                    case OP_LOR:
+                    case OP_LAN:
+                        $$.type = OBJECT_TYPE_BOOL;
+                        break;
+                    default:
+                        $$.type = ( $1.type == OBJECT_TYPE_BOOL ? $4.type : $1.type );
+                    }
+                }
+                else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
+                    $$.type = OBJECT_TYPE_FLOAT;
+                else
+                    $$.type = OBJECT_TYPE_INT;
+            }
+            get_op_inst ( buffer, $$.type, ops[op_idx] );
+            print_buffer ( buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
 
@@ -308,6 +382,8 @@ Expression
             else if ( $1.type == OBJECT_TYPE_FLOAT || $4.type == OBJECT_TYPE_FLOAT )
                 $$.type = OBJECT_TYPE_FLOAT, is_float = true;
         }
+        if ( $$.type == OBJECT_TYPE_UNDEFINED )
+            $$.type = OBJECT_TYPE_INT;
     }
     | '(' VARIABLE_T {
         is_cast = true;
@@ -327,6 +403,8 @@ UnaryExpr
 			$$.i_var = ( $<op>1 == OP_POS ? $<object_val>2.i_var : -$<object_val>2.i_var );
         else if ( $$.type == OBJECT_TYPE_FLOAT )
 			$$.f_var = ( $<op>1 == OP_POS ? $<object_val>2.f_var : -$<object_val>2.f_var );
+        get_op_inst ( buffer, $<object_val>2.type, $<op>1 );
+        print_buffer ( buffer );
         printf ( "%s\n", get_op_name ( $<op>1 ) );
     }
 ;
@@ -337,6 +415,7 @@ PrimaryExpr
             printf ( "Cast to %s\n", get_type_name ( cast_type ) );
             is_cast = false;
         }
+        $$.type = $1.type;
     }
     | FuncCallStmt
 ;
@@ -373,8 +452,11 @@ Operand
                 op_idx--;
                 break;
             }
+            get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
+            print_buffer ( buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
+        $$.type = $3.type;
     }
     | IDENT D1Array {
         Node *tmp = Query_Symbol ( $<s_var>1 );
@@ -540,8 +622,12 @@ ListOfArray
 AssignmentStmt
     : Operand assign_op Expression {
         ops[++op_idx] = $<op>2;
-        while ( op_idx )
+        strcpy ( assign, $1.name );
+        while ( op_idx ) {
+            get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
+            print_buffer ( buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        }
     }
     | Operand INC_ASSIGN { ops[++op_idx] = OP_INC_ASSIGN; }
     | Operand DEC_ASSIGN { ops[++op_idx] = OP_DEC_ASSIGN; }
@@ -598,8 +684,11 @@ ForIn
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
     } ')'
     | '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
-        while ( op_idx )
+        while ( op_idx ) {
+            get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
+            print_buffer ( buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+        }
     } ')'
 ;
 

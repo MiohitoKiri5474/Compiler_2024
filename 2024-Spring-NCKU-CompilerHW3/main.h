@@ -44,6 +44,12 @@ char get_type(ObjectType);
 int Get_Level(void);
 void ScopeAddOne(void);
 void ScopeMinusOne(void);
+void c_exp_update(int);
+void if_status_update(int);
+void get_op_inst(char *, ObjectType, op_t);
+int get_c_exp(void);
+char *get_ls_name(ObjectType, int);
+void print_buffer(char *);
 
 Node *New_Node(int, int);
 void up(Node **);
@@ -60,7 +66,6 @@ void Dump_Table();
 void Print_Treap(Node **o);
 Node *Query_Symbol(char *);
 Node *dfs(Node **, char *);
-void c_exp_update(int);
 
 typedef struct _treap {
     struct _treap *l, *r;
