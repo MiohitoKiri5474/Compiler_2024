@@ -746,7 +746,9 @@ IfCondition
 ;
 
 Condition
-    : Expression
+    : Expression {
+        code ( "goto Exit_%d", lb_idx );
+    }
 ;
 
 Block
