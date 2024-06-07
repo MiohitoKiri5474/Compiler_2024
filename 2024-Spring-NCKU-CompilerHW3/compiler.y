@@ -7,7 +7,7 @@
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0;
     bool is_bool = false, is_float = false, is_str = false;
-    bool is_cast = false, is_declare = false, is_auto = false;
+    bool is_cast = false, is_declare = false, is_auto = false, in_if_condition = false;
     bool if_flag = false, couting = false, first_argument;
     bool is_return = false, is_assignment = false;
     ObjectType cast_type, declare_type;
@@ -402,7 +402,28 @@ Expression
                 else
                     $$.type = OBJECT_TYPE_INT;
             }
-          
+            if ( !in_if_condition ) {
+                get_op_inst ( buffer, $$.type, ops[op_idx] );
+                if ( $1.type == OBJECT_TYPE_FLOAT )
+                    code ( "%s", buffer );
+                else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                            ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                            ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                    code("%s L_cmp_%d", buffer, bf_cnt++);
+                    codeRaw("ldc 1");
+                    code("goto L_cmp_%d", bf_cnt++);
+                    ScopeMinusOne();
+                    code("L_cmp_%d:", bf_cnt - 2);
+                    ScopeAddOne();
+                    codeRaw("ldc 0");
+                    ScopeMinusOne();
+                    code("L_cmp_%d:", bf_cnt - 1);
+                    ScopeAddOne();
+
+                }
+                else
+                    code ( "%s", buffer );
+            }
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
 
@@ -717,7 +738,11 @@ IfStmt
 ;
 
 IfCondition
-    : { if_flag = true; } IF '(' Condition ')' { puts ( "IF" ); if_flag = false; }
+    : { if_flag = true; } IF '(' {
+        in_if_condition = true;
+    } Condition {
+        in_if_condition = false;
+    } ')' { puts ( "IF" ); if_flag = false; }
 ;
 
 Condition
