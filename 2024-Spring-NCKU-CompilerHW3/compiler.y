@@ -9,7 +9,7 @@
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument;
-    bool is_return = false;
+    bool is_return = false, is_assignment = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 
@@ -121,7 +121,7 @@ FunctionDefStmt
 
         ScopeMinusOne();
         if ( !strcmp ( $2, "main" ) )
-        	codeRaw ( ".method public static main([Ljava/lang/String;)V\n" );
+        	codeRaw ( ".method public static main([Ljava/lang/String;)V" );
         else
 			code ( ".method public statis %s()V\n", $2 );
         ScopeAddOne();
@@ -388,10 +388,14 @@ Expression
     | '(' VARIABLE_T {
         is_cast = true;
         cast_type = $<var_type>2;
-    } ')' Expression {
+    } ')' UnaryExpr {
         $<s_var>$ = $<s_var>5;
         $$.type = $<var_type>2;
         is_float = is_str = is_bool = false;
+        if ( cast_type == OBJECT_TYPE_INT && $5.type == OBJECT_TYPE_FLOAT )
+            codeRaw ( "f2i" );
+        else if ( cast_type == OBJECT_TYPE_FLOAT && $5.type == OBJECT_TYPE_INT )
+            codeRaw ( "i2f" );
     }
 ;
 
@@ -443,7 +447,10 @@ Operand
                         is_float = true;
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
-                code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                if ( !is_assignment ) {
+                    code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                    is_assignment = false;
+                }
             }
         }
     }
@@ -596,16 +603,16 @@ DeclarationIDENT
     : IDENT {
         Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
         if ( declare_type == OBJECT_TYPE_INT )
-            codeRaw ( "ldc 0\n" );
+            codeRaw ( "ldc 0" );
         else if ( declare_type == OBJECT_TYPE_FLOAT || declare_type == OBJECT_TYPE_DOUBLE )
-            codeRaw ( "ldc 0.0\n" );
+            codeRaw ( "ldc 0.0" );
         else if ( declare_type == OBJECT_TYPE_STR )
             codeRaw ( "ldc \"\"" );
         code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT VAL_ASSIGN Expression {
         Node *tmp = Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
-        code ( "%s %d\n", get_ls_name ( declare_type, 1 ), tmp -> addr );
+        code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT D2Array {
         // TODO Array
@@ -644,10 +651,15 @@ AssignmentStmt
                 get_op_inst ( buffer, $1.type, ops[op_idx] );
                 code ( "%s", buffer );
             }
+            if ( $1.type == OBJECT_TYPE_FLOAT && $3.type == OBJECT_TYPE_INT )
+                codeRaw ( "i2f" );
+            else if ( $1.type == OBJECT_TYPE_INT && $3.type == OBJECT_TYPE_FLOAT )
+                codeRaw ( "f2i" );
             code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
 
             op_idx--;
         }
+
     }
     | Operand INC_ASSIGN { ops[++op_idx] = OP_INC_ASSIGN; }
     | Operand DEC_ASSIGN { ops[++op_idx] = OP_DEC_ASSIGN; }

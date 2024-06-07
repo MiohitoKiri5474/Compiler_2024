@@ -1,5 +1,5 @@
 int main(string argv[]) {
-    int x = 3;
+    int x = 3; // 
     float y = 3.14;
     int z1,z2;
     z1 = x + (int)(y);
