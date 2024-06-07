@@ -402,26 +402,7 @@ Expression
                 else
                     $$.type = OBJECT_TYPE_INT;
             }
-            get_op_inst ( buffer, $$.type, ops[op_idx] );
-            if ( $1.type == OBJECT_TYPE_FLOAT )
-                code ( "%s", buffer );
-            else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
-                        ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
-                        ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                code("%s L_cmp_%d", buffer, bf_cnt++);
-                codeRaw("ldc 1");
-                code("goto L_cmp_%d", bf_cnt++);
-                ScopeMinusOne();
-                code("L_cmp_%d:", bf_cnt - 2);
-                ScopeAddOne();
-                codeRaw("ldc 0");
-                ScopeMinusOne();
-                code("L_cmp_%d:", bf_cnt - 1);
-                ScopeAddOne();
-
-            }
-            else
-                code ( "%s", buffer );
+          
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
 
@@ -746,9 +727,13 @@ Condition
 Block
     : '{' {
         Create_Table();
+        ScopeMinusOne();
         code ( "Label_%d:", lb_idx );
+        ScopeAddOne();
     } StmtList '}' {
+        ScopeMinusOne();
         code ( "Exit_%d:", lb_idx++ );
+        ScopeAddOne();
         Dump_Table();
     }
 ;
