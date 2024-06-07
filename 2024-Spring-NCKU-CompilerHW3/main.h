@@ -49,7 +49,6 @@ void if_status_update(int);
 void get_op_inst(char *, ObjectType, op_t);
 int get_c_exp(void);
 char *get_ls_name(ObjectType, int);
-void print_buffer(char *);
 
 Node *New_Node(int, int);
 void up(Node **);

@@ -66,7 +66,6 @@ int variableAddress = 0;
 int addr;
 int c_exp;
 int if_status;
-int bf_cnt = 0;
 ObjectType variableIdentType;
 
 Table *symbol_table[1024];
@@ -391,24 +390,6 @@ char *get_print_type(ObjectType type)
 char get_type(ObjectType type)
 {
     return (char) (get_type_name(type)[0] - 'a' + 'A');
-}
-
-void print_buffer(char *buffer)
-{
-    if (buffer[0] == 'i' && buffer[1] == 'f' && buffer[2] == '_') {
-        puts("\t\tmeow");
-        code("%s L_cmp_%d", buffer, bf_cnt++);
-        codeRaw("ldc 1");
-        code("goto L_cmp_%d", bf_cnt++);
-        scopeLevel--;
-        code("L_cmp_%d:", bf_cnt - 2);
-        scopeLevel++;
-        codeRaw("ldc 0");
-        scopeLevel--;
-        code("L_cmp_%d:", bf_cnt - 1);
-        scopeLevel++;
-    } else
-        code("%s", buffer);
 }
 
 void get_op_inst(char *buf, ObjectType type, op_t op)
