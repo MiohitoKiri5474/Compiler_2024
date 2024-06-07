@@ -289,11 +289,11 @@ Expression
                     op_idx--;
                     break;
                 }
-                if ( $<object_val>1.type == OBJECT_TYPE_FLOAT )
+                if ( $1.type == OBJECT_TYPE_FLOAT )
                     code ( "%s", buffer );
                 else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
-                         ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
-                         ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                          ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                          ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
                     code("%s L_cmp_%d", buffer, bf_cnt++);
                     codeRaw("ldc 1");
                     code("goto L_cmp_%d", bf_cnt++);
@@ -314,7 +314,26 @@ Expression
         else {
             while ( op_idx && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
                 get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
-                code ( "%s", buffer );
+                if ( $1.type == OBJECT_TYPE_FLOAT )
+                    code ( "%s", buffer );
+                else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                          ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                          ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                    code("%s L_cmp_%d", buffer, bf_cnt++);
+                    codeRaw("ldc 1");
+                    code("goto L_cmp_%d", bf_cnt++);
+                    ScopeMinusOne();
+                    code("L_cmp_%d:", bf_cnt - 2);
+                    ScopeAddOne();
+                    codeRaw("ldc 0");
+                    ScopeMinusOne();
+                    code("L_cmp_%d:", bf_cnt - 1);
+                    ScopeAddOne();
+
+                }
+                else
+                    code ( "%s", buffer );
+
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
                     break;
@@ -384,7 +403,25 @@ Expression
                     $$.type = OBJECT_TYPE_INT;
             }
             get_op_inst ( buffer, $$.type, ops[op_idx] );
-            code ( "%s", buffer );
+            if ( $1.type == OBJECT_TYPE_FLOAT )
+                code ( "%s", buffer );
+            else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                        ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                        ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                code("%s L_cmp_%d", buffer, bf_cnt++);
+                codeRaw("ldc 1");
+                code("goto L_cmp_%d", bf_cnt++);
+                ScopeMinusOne();
+                code("L_cmp_%d:", bf_cnt - 2);
+                ScopeAddOne();
+                codeRaw("ldc 0");
+                ScopeMinusOne();
+                code("L_cmp_%d:", bf_cnt - 1);
+                ScopeAddOne();
+
+            }
+            else
+                code ( "%s", buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
 
