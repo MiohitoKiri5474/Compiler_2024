@@ -56,7 +56,7 @@ void up(Node **);
 Node *merge(Node *, Node *);
 Node *Insert_Head(Node *, Node *);
 Node *Insert_Tail(Node *, Node *);
-void Insert_Symbol(char *, ObjectType, char *, int);
+Node *Insert_Symbol(char *, ObjectType, char *, int);
 void Update_Symbol(char *, char *);
 bool update(Node **, char *, char *);
 void Insert_Node(Node *);

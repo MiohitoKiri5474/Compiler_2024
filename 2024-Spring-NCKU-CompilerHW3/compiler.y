@@ -68,7 +68,7 @@
 %type <object_val> UnaryExpr
 %type <object_val> Literal
 %type <object_val> Operand
-%type <op> add_op mul_op unary_op
+%type <op> add_op mul_op unary_op assign_op
 
 %left ADD SUB
 %left MUL DIV REM
@@ -431,6 +431,8 @@ Operand
         else {
             Node *tmp = Query_Symbol ( $<s_var>1 );
             if ( tmp ) {
+                $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
+                strcpy ( $$.name, tmp -> name );
                 $$.type = tmp -> type;
                 if ( couting ) {
                     if ( tmp -> type == OBJECT_TYPE_STR )
@@ -441,6 +443,7 @@ Operand
                         is_float = true;
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+                code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
             }
         }
     }
@@ -591,15 +594,25 @@ DeclarationList
 
 DeclarationIDENT
     : IDENT {
-        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        if ( declare_type == OBJECT_TYPE_INT )
+            codeRaw ( "ldc 0\n" );
+        else if ( declare_type == OBJECT_TYPE_FLOAT || declare_type == OBJECT_TYPE_DOUBLE )
+            codeRaw ( "ldc 0.0\n" );
+        else if ( declare_type == OBJECT_TYPE_STR )
+            codeRaw ( "ldc \"\"" );
+        code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT VAL_ASSIGN Expression {
-        Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
+        Node *tmp = Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
+        code ( "%s %d\n", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT D2Array {
+        // TODO Array
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
     }
     | IDENT D1Array { arr_len = 0; } VAL_ASSIGN '{' ListOfArray '}' {
+        // TODO Array
         printf ( "create array: %d\n", arr_len );
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
     }
@@ -623,10 +636,17 @@ AssignmentStmt
     : Operand assign_op Expression {
         ops[++op_idx] = $<op>2;
         strcpy ( assign, $1.name );
+        Node *tmp = Query_Symbol ( $1.name );
         while ( op_idx ) {
-            get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
-            print_buffer ( buffer );
-            printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
+            printf ( "%s\n", get_op_name ( ops[op_idx] ) );
+
+            if ( $2 != OP_VAL_ASSIGN ) {
+                get_op_inst ( buffer, $1.type, ops[op_idx] );
+                code ( "%s", buffer );
+            }
+            code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
+
+            op_idx--;
         }
     }
     | Operand INC_ASSIGN { ops[++op_idx] = OP_INC_ASSIGN; }

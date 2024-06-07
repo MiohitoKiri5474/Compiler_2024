@@ -269,7 +269,7 @@ Table *New_Table(void)
     return res;
 }
 
-void Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
+Node *Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
 {
     int idx = scopeLevel - 1;
     Node *tmp = Create_Node(
@@ -279,6 +279,7 @@ void Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
         table_tmp[table_tmp_idx[idx]++] = tmp;
     else
         Insert_Node(tmp);
+    return tmp;
 }
 
 void Create_Table()
@@ -523,45 +524,45 @@ char *get_op_name(op_t op)
     case OP_LAN:
         return "LAN";
     case OP_BOR:
-        return "BOR";
+        return "OR";
     case OP_BAN:
-        return "BAN";
+        return "AND";
     case OP_BNT:
-        return "BNT";
+        return "const_m1\n\tixor";
     case OP_BXO:
-        return "BXO";
+        return "XOR";
     case OP_VAL_ASSIGN:
         return "EQL_ASSIGN";
     case OP_ADD_ASSIGN:
-        return "ADD_ASSIGN";
+        return "ADD";
     case OP_SUB_ASSIGN:
-        return "SUB_ASSIGN";
+        return "SUB";
     case OP_MUL_ASSIGN:
-        return "MUL_ASSIGN";
+        return "MUL";
     case OP_DIV_ASSIGN:
-        return "DIV_ASSIGN";
+        return "DIV";
     case OP_REM_ASSIGN:
-        return "REM_ASSIGN";
+        return "REM";
     case OP_BAN_ASSIGN:
-        return "BAN_ASSIGN";
+        return "AND";
     case OP_BOR_ASSIGN:
-        return "BOR_ASSIGN";
+        return "OR";
     case OP_BXO_ASSIGN:
-        return "BXO_ASSIGN";
+        return "BXO";
     case OP_SHL_ASSIGN:
-        return "SHL_ASSIGN";
+        return "SHL";
     case OP_SHR_ASSIGN:
-        return "SHR_ASSIGN";
+        return "SHR";
     case OP_INC_ASSIGN:
-        return "INC_ASSIGN";
+        return "INC";
     case OP_DEC_ASSIGN:
-        return "DEC_ASSIGN";
+        return "DEC";
     case OP_LSHIFT:
         return "SHL";
     case OP_RSHIFT:
         return "SHR";
     default:
-        return "unknown";
+        return "";
     }
 }
 
@@ -570,6 +571,7 @@ char *get_ls_name(ObjectType type, int inst)
     switch (type) {
     case OBJECT_TYPE_INT:
         return !inst ? "iload" : "istore";
+    case OBJECT_TYPE_DOUBLE:
     case OBJECT_TYPE_FLOAT:
         return !inst ? "fload" : "fstore";
     case OBJECT_TYPE_BOOL:
