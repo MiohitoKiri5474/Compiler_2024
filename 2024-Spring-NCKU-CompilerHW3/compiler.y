@@ -6,15 +6,29 @@
     int yydebug = 1;
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0;
+    int condition_idx = 0, Label_stack_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
-    bool is_cast = false, is_declare = false, is_auto = false, in_if_condition = false;
-    bool if_flag = false, couting = false, first_argument;
-    bool is_return = false, is_assignment = false;
+    bool is_cast = false, is_declare = false, is_auto = false;
+    bool if_flag = false, couting = false, first_argument = false;
+    bool is_return = false, is_assignment = false, in_if_condition = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 
     char buffer[128];
     char assign[128];
+    char condition_buffer[1024][128];
+    int Label_stack[128];
+
+    #define REC_BUFFER_WF(format, ...) \
+        snprintf ( condition_buffer[condition_idx], \
+                   sizeof ( condition_buffer[condition_idx] ), \
+                   format, \
+                   __VA_ARGS__ ), condition_idx++;
+    #define REC_BUFFER(str) \
+        snprintf ( condition_buffer[condition_idx], \
+                   sizeof ( condition_buffer[condition_idx] ), \
+                   str ), condition_idx++;
+
 %}
 
 /* Variable or self-defined structure */
@@ -286,53 +300,83 @@ Expression
                 get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
                 if ( ops[op_idx] == OP_LBRA ) {
                     code ( "%s", buffer );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s", buffer );
                     op_idx--;
                     break;
                 }
-                if ( $1.type == OBJECT_TYPE_FLOAT )
+                if ( $1.type == OBJECT_TYPE_FLOAT ) {
                     code ( "%s", buffer );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s", buffer );
+                }
                 else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
                           ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                           ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                    code("%s L_cmp_%d", buffer, bf_cnt++);
-                    codeRaw("ldc 1");
-                    code("goto L_cmp_%d", bf_cnt++);
+                    code ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                    codeRaw ( "ldc 0" );
+                    code ( "goto L_cmp_%d", bf_cnt++ );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 2);
+                    code ( "L_cmp_%d:", bf_cnt - 2 );
                     ScopeAddOne();
-                    codeRaw("ldc 0");
+                    codeRaw ( "ldc 1" );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 1);
+                    code ( "L_cmp_%d:", bf_cnt - 1 );
                     ScopeAddOne();
 
+                    if ( in_if_condition ) {
+                        REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                        REC_BUFFER ( "ldc 0" );
+                        REC_BUFFER_WF ( "goto L_cmp_%d", bf_cnt++ );
+                        REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 2 );
+                        REC_BUFFER ( "ldc 1" );
+                        REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 1 );
+                    }
                 }
-                else
+                else {
                     code ( "%s", buffer );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s", buffer );
+                }
                 printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
             }
         }
         else {
             while ( op_idx && get_op_priority ( $<op>2 ) <= get_op_priority ( ops[op_idx] ) ) {
                 get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
-                if ( $1.type == OBJECT_TYPE_FLOAT )
+                if ( $1.type == OBJECT_TYPE_FLOAT ) {
                     code ( "%s", buffer );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s", buffer );
+                }
                 else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
                           ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                           ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                    code("%s L_cmp_%d", buffer, bf_cnt++);
-                    codeRaw("ldc 1");
-                    code("goto L_cmp_%d", bf_cnt++);
+                    code ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                    codeRaw ( "ldc 0" );
+                    code ( "goto L_cmp_%d", bf_cnt++ );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 2);
+                    code ( "L_cmp_%d:", bf_cnt - 2 );
                     ScopeAddOne();
-                    codeRaw("ldc 0");
+                    codeRaw ( "ldc 1" );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 1);
+                    code ( "L_cmp_%d:", bf_cnt - 1 );
                     ScopeAddOne();
 
+                    if ( in_if_condition ) {
+                        REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                        REC_BUFFER ( "ldc 0" );
+                        REC_BUFFER_WF ( "goto L_cmp_%d", bf_cnt++ );
+                        REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 2 );
+                        REC_BUFFER ( "ldc 1" );
+                        REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 1 );
+                    }
                 }
-                else
+                else {
                     code ( "%s", buffer );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s", buffer );
+                }
 
                 if ( ops[op_idx] == OP_LBRA ) {
                     op_idx--;
@@ -367,13 +411,36 @@ Expression
                 if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
                      ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                      ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                    if ( !get_c_exp() )
-                        code ( "%s Label_%d", buffer, lb_idx );
+                    if ( !get_c_exp() ) {
+                        code ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                        codeRaw ( "ldc 0" );
+                        code ( "goto L_cmp_%d", bf_cnt++ );
+                        ScopeMinusOne();
+                        code ( "L_cmp_%d:", bf_cnt - 2 );
+                        ScopeAddOne();
+                        codeRaw ( "ldc 1" );
+                        ScopeMinusOne();
+                        code ( "L_cmp_%d:", bf_cnt - 1 );
+                        ScopeAddOne();
+
+                        if ( in_if_condition ) {
+                            REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                            REC_BUFFER ( "ldc 0" );
+                            REC_BUFFER_WF ( "goto L_cmp_%d", bf_cnt++ );
+                            REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 2 );
+                            REC_BUFFER ( "ldc 1" );
+                            REC_BUFFER_WF ( "L_cmp_%d:", bf_cnt - 1 );
+                        }
+                    }
                 }
             }
             else {
                 Node *tmp = Query_Symbol ( assign );
                 code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
+                if ( in_if_condition )
+                    REC_BUFFER_WF ( "%s %d",
+                                    get_ls_name ( $1.type, 1 ),
+                                    tmp -> addr );
             }
             if ( !pass ) {
                 if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
@@ -402,27 +469,32 @@ Expression
                 else
                     $$.type = OBJECT_TYPE_INT;
             }
-            if ( !in_if_condition ) {
-                get_op_inst ( buffer, $$.type, ops[op_idx] );
-                if ( $1.type == OBJECT_TYPE_FLOAT )
-                    code ( "%s", buffer );
-                else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
-                            ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
-                            ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                    code("%s L_cmp_%d", buffer, bf_cnt++);
-                    codeRaw("ldc 1");
-                    code("goto L_cmp_%d", bf_cnt++);
+            get_op_inst ( buffer, $$.type, ops[op_idx] );
+            if ( $1.type == OBJECT_TYPE_FLOAT ) {
+                code ( "%s", buffer );
+                if ( in_if_condition )
+                    REC_BUFFER_WF ( "%s", buffer );
+            }
+            else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
+                        ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
+                        ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
+                if ( !in_if_condition ) {
+                    code ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                    codeRaw ( "ldc 0" );
+                    code ( "goto L_cmp_%d", bf_cnt++ );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 2);
+                    code ( "L_cmp_%d:", bf_cnt - 2 );
                     ScopeAddOne();
-                    codeRaw("ldc 0");
+                    codeRaw ( "ldc 1" );
                     ScopeMinusOne();
-                    code("L_cmp_%d:", bf_cnt - 1);
+                    code ( "L_cmp_%d:", bf_cnt - 1 );
                     ScopeAddOne();
-
                 }
-                else
-                    code ( "%s", buffer );
+            }
+            else {
+                code ( "%s", buffer );
+                if ( in_if_condition )
+                    REC_BUFFER_WF ( "%s", buffer );
             }
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
@@ -443,10 +515,16 @@ Expression
         $<s_var>$ = $<s_var>5;
         $$.type = $<var_type>2;
         is_float = is_str = is_bool = false;
-        if ( cast_type == OBJECT_TYPE_INT && $5.type == OBJECT_TYPE_FLOAT )
+        if ( cast_type == OBJECT_TYPE_INT && $5.type == OBJECT_TYPE_FLOAT ) {
             codeRaw ( "f2i" );
-        else if ( cast_type == OBJECT_TYPE_FLOAT && $5.type == OBJECT_TYPE_INT )
+            if ( in_if_condition )
+                REC_BUFFER ( "f2i" );
+        }
+        else if ( cast_type == OBJECT_TYPE_FLOAT && $5.type == OBJECT_TYPE_INT ) {
             codeRaw ( "i2f" );
+            if ( in_if_condition )
+                REC_BUFFER ( "i2f" );
+        }
     }
 ;
 
@@ -460,6 +538,8 @@ UnaryExpr
 			$$.f_var = ( $<op>1 == OP_POS ? $<object_val>2.f_var : -$<object_val>2.f_var );
         get_op_inst ( buffer, $<object_val>2.type, $<op>1 );
         code ( "%s", buffer );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "%s", buffer );
         printf ( "%s\n", get_op_name ( $<op>1 ) );
     }
 ;
@@ -500,6 +580,10 @@ Operand
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
                 if ( !is_assignment ) {
                     code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                    if ( in_if_condition )
+                        REC_BUFFER_WF ( "%s %d",
+                                        get_ls_name ( $$.type, 0 ),
+                                        tmp -> addr );
                     is_assignment = false;
                 }
             }
@@ -515,6 +599,8 @@ Operand
             }
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
             code ( "%s", buffer );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "%s", buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
         $$.type = $3.type;
@@ -558,6 +644,8 @@ Literal
         printf ( "INT_LIT %d\n", $$.i_var );
         if ( !is_return ) {
             code ( "ldc %d", $$.i_var );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "ldc %d", $$.i_var );
         }
     }
     | FLOAT_LIT {
@@ -566,6 +654,8 @@ Literal
         printf ( "FLOAT_LIT %f\n", $$.f_var );
         if ( !is_return ) {
             code ( "ldc %f", $$.f_var );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "ldc %d", $$.f_var );
         }
     }
     | BOOL_LIT {
@@ -574,6 +664,8 @@ Literal
         printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
         if ( !is_return ) {
             code ( "ldc %d", $$.b_var );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "ldc %d", $$.b_var );
         }
     }
     | STR_LIT {
@@ -582,6 +674,8 @@ Literal
         printf ( "STR_LIT \"%s\"\n", $$.s_var );
         if ( !is_return ) {
             code ( "ldc \"%s\"", $$.s_var );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "ldc \"%s\"", $$.s_var );
         }
     }
     | CHAR_LIT {
@@ -590,6 +684,8 @@ Literal
         printf ( "CHAR_LIT %c\n", $$.c_var );
         if ( !is_return ) {
             code ( "ldc \"%c\"", $$.c_var );
+            if ( in_if_condition )
+                REC_BUFFER_WF ( "ldc \"%c\"", $$.c_var );
         }
     }
 ;
@@ -687,7 +783,7 @@ D1Array
 ListOfArray
     : Expression { arr_len++; }
     | Expression ',' ListOfArray { arr_len++; }
-    | 
+    |
 ;
 
 AssignmentStmt
@@ -733,21 +829,41 @@ assign_op
 IfStmt
     : IfCondition Block
     | IfCondition Stmt
-    | IfCondition Block ELSE { puts ( "ELSE" ); } Block
+    | IfCondition Block ELSE {
+        puts ( "ELSE" );
+        for ( int i = 0 ; i < condition_idx ; i++ ) {
+            code ( "%s", condition_buffer[i] );
+            printf ( "\t%s\n", condition_buffer[i] );
+        }
+        codeRaw ( "ldc 1" );
+        Label_stack[Label_stack_idx] = lb_idx++;
+        code ( "if_icmpne Label_%d", Label_stack[Label_stack_idx] );
+        code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
+    } Block
     | IfCondition Block ELSE { puts ( "ELSE" ); } IfStmt
 ;
 
 IfCondition
-    : { if_flag = true; } IF '(' {
+    : {
+        if_flag = true;
+        condition_idx = 0;
+    } IF '(' {
         in_if_condition = true;
     } Condition {
         in_if_condition = false;
-    } ')' { puts ( "IF" ); if_flag = false; }
+    } ')' {
+        puts ( "IF" );
+        if_flag = false;
+        codeRaw ( "ldc 1" );
+        Label_stack[Label_stack_idx] = lb_idx++;
+        code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
+        code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
+    }
 ;
 
 Condition
     : Expression {
-        code ( "goto Exit_%d", lb_idx );
+        // code ( "goto Exit_%d", lb_idx );
     }
 ;
 
@@ -755,11 +871,11 @@ Block
     : '{' {
         Create_Table();
         ScopeMinusOne();
-        code ( "Label_%d:", lb_idx );
+        code ( "Label_%d:", Label_stack[Label_stack_idx++] );
         ScopeAddOne();
     } StmtList '}' {
         ScopeMinusOne();
-        code ( "Exit_%d:", lb_idx++ );
+        code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         ScopeAddOne();
         Dump_Table();
     }

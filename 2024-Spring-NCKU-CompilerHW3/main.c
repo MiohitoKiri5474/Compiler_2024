@@ -10,38 +10,6 @@
 
 #define debug printf("%s:%d: ############### debug\n", __FILE__, __LINE__)
 
-#define iload(var) \
-    code("iload %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define lload(var) \
-    code("lload %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define fload(var) \
-    code("fload %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define dload(var) \
-    code("dload %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define aload(var) \
-    code("aload %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-
-#define istore(var) \
-    code("istore %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define lstore(var) \
-    code("lstore %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define fstore(var) \
-    code("fstore %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define dstore(var) \
-    code("dstore %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-#define astore(var) \
-    code("astore %" PRId64 " ; %s", (var)->symbol->addr, (var)->symbol->name)
-
-#define ldz(val) code("ldc %d", getBool(val))
-#define ldb(val) code("ldc %d", getByte(val))
-#define ldc(val) code("ldc %d", getChar(val))
-#define lds(val) code("ldc %d", getShort(val))
-#define ldi(val) code("ldc %d", getInt(val))
-#define ldl(val) code("ldc_w %" PRId64, getLong(val))
-#define ldf(val) code("ldc %.6f", getFloat(val))
-#define ldd(val) code("ldc_w %lf", getDouble(val))
-#define ldt(val) code("ldc \"%s\"", getString(val))
-
 char *yyInputFileName;
 bool compileError;
 
@@ -399,7 +367,7 @@ void get_op_inst(char *buf, ObjectType type, op_t op)
     buf[0] = get_type_name(type)[0], idx = 1;
     if (type == -1 || op == OP_EQL || op == OP_NEQ || op == OP_LES ||
         op == OP_LEQ || op == OP_GTR || op == OP_NEQ || op == OP_LOR ||
-        op == OP_LAN) {
+        op == OP_LAN || op == OP_GEQ) {
         idx = 0;
     }
 
