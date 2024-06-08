@@ -6,11 +6,11 @@
     int yydebug = 1;
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0;
-    int condition_idx = 0, Label_stack_idx = 0;
+    int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false;
-    bool is_return = false, is_assignment = false, in_if_condition = false;
+    bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
 
@@ -316,13 +316,9 @@ Expression
                     code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 2 );
-                    ScopeAddOne();
                     codeRaw ( "ldc 1" );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 1 );
-                    ScopeAddOne();
 
                     if ( in_if_condition ) {
                         REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
@@ -355,13 +351,9 @@ Expression
                     code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 2 );
-                    ScopeAddOne();
                     codeRaw ( "ldc 1" );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 1 );
-                    ScopeAddOne();
 
                     if ( in_if_condition ) {
                         REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
@@ -415,13 +407,9 @@ Expression
                         code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                         codeRaw ( "ldc 0" );
                         code ( "goto L_cmp_%d", bf_cnt++ );
-                        ScopeMinusOne();
                         code ( "L_cmp_%d:", bf_cnt - 2 );
-                        ScopeAddOne();
                         codeRaw ( "ldc 1" );
-                        ScopeMinusOne();
                         code ( "L_cmp_%d:", bf_cnt - 1 );
-                        ScopeAddOne();
 
                         if ( in_if_condition ) {
                             REC_BUFFER_WF ( "%s L_cmp_%d", buffer, bf_cnt++ );
@@ -482,13 +470,9 @@ Expression
                     code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 2 );
-                    ScopeAddOne();
                     codeRaw ( "ldc 1" );
-                    ScopeMinusOne();
                     code ( "L_cmp_%d:", bf_cnt - 1 );
-                    ScopeAddOne();
                 }
             }
             else {
@@ -655,7 +639,7 @@ Literal
         if ( !is_return ) {
             code ( "ldc %f", $$.f_var );
             if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc %d", $$.f_var );
+                REC_BUFFER_WF ( "ldc %f", $$.f_var );
         }
     }
     | BOOL_LIT {
@@ -870,19 +854,30 @@ Condition
 Block
     : '{' {
         Create_Table();
-        ScopeMinusOne();
         code ( "Label_%d:", Label_stack[Label_stack_idx++] );
-        ScopeAddOne();
     } StmtList '}' {
-        ScopeMinusOne();
-        code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
-        ScopeAddOne();
+        if ( !in_loop )
+            code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         Dump_Table();
     }
 ;
 
 WhileStmt
-    : WHILE { if_flag = true; puts ( "WHILE" ); } Condition { if_flag = false; } Block
+    : WHILE {
+        puts ( "WHILE" );
+        code ( "For_%d:", fr_cnt );
+        in_loop = in_if_condition = if_flag = true;
+    } Condition {
+        in_if_condition = if_flag = false;
+        codeRaw ( "ldc 1" );
+        Label_stack[Label_stack_idx] = lb_idx++;
+        code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
+        code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
+    } Block {
+        code ( "goto For_%d", fr_cnt++ );
+        code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
+        in_loop = false;
+    }
 ;
 
 ForStmt
