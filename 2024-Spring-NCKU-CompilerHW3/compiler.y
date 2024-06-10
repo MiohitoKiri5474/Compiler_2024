@@ -479,7 +479,7 @@ Expression
                         ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                         ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
                 if ( !in_if_condition ) {
-                    code ( "meow: %s L_cmp_%d", buffer, bf_cnt++ );
+                    code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
                     code ( "L_cmp_%d:", bf_cnt - 2 );
