@@ -643,9 +643,11 @@ Literal
         $$.i_var = $<i_var>1;
         printf ( "INT_LIT %d\n", $$.i_var );
         if ( !is_return ) {
-            if ( for_flag )
+            if ( for_flag ) {
                 REC_FOR_WF ( "ldc %d", $$.i_var );
-            code ( "ldc %d", $$.i_var );
+            }
+            else
+                code ( "ldc %d", $$.i_var );
             if ( in_if_condition )
                 REC_BUFFER_WF ( "ldc %d", $$.i_var );
         }
@@ -955,7 +957,10 @@ ForIn
         while ( op_idx ) {
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
             if ( !strcmp ( buffer, "iinc" ) ) {
-                REC_FOR_WF ( "%s %d %d", buffer, for_assignment_addr, for_delta );
+                REC_FOR_WF ( "ldc %d", for_delta );
+                REC_FOR ( "iadd" );
+                REC_FOR_WF ( "istore %d", for_assignment_addr );
+                // OREC_FOR_WF ( "%s %d %d", buffer, for_assignment_addr, for_delta );
             }
             else
                 REC_FOR_WF ( "%s", buffer );
