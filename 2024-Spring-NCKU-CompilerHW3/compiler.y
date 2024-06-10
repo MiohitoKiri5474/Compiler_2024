@@ -479,7 +479,7 @@ Expression
                         ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                         ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
                 if ( !in_if_condition ) {
-                    code ( "%s L_cmp_%d", buffer, bf_cnt++ );
+                    code ( "meow: %s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
                     code ( "L_cmp_%d:", bf_cnt - 2 );
@@ -903,9 +903,9 @@ WhileStmt
         puts ( "WHILE" );
         for_stack[for_stack_idx] = fr_cnt++;
         code ( "For_%d:", for_stack[for_stack_idx++] );
-        in_loop = if_flag = true;
+        in_if_condition = in_loop = if_flag = true;
     } Condition {
-        if_flag = false;
+        in_if_condition = if_flag = false;
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
@@ -955,7 +955,6 @@ ForIn
         while ( op_idx ) {
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
             if ( !strcmp ( buffer, "iinc" ) ) {
-                for_buffer_idx--;
                 REC_FOR_WF ( "%s %d %d", buffer, for_assignment_addr, for_delta );
             }
             else
