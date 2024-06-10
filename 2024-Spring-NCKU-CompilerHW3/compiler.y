@@ -5,11 +5,11 @@
 
     int yydebug = 1;
 
-    int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0;
-    int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0;
+    int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
+    int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
-    bool if_flag = false, couting = false, first_argument = false;
+    bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
     ObjectType cast_type, declare_type;
     op_t ops[1024];
@@ -17,7 +17,8 @@
     char buffer[128];
     char assign[128];
     char condition_buffer[1024][128];
-    int Label_stack[128];
+    char for_buffer[1024][128];
+    int Label_stack[128], for_stack[128];
 
     #define REC_BUFFER_WF(format, ...) \
         snprintf ( condition_buffer[condition_idx], \
@@ -28,6 +29,17 @@
         snprintf ( condition_buffer[condition_idx], \
                    sizeof ( condition_buffer[condition_idx] ), \
                    str ), condition_idx++;
+
+    #define REC_FOR_WF(format, ...) \
+        snprintf ( for_buffer[for_buffer_idx], \
+                   sizeof ( for_buffer[for_buffer_idx] ), \
+                   format, \
+                   __VA_ARGS__ ), for_buffer_idx++;
+    #define REC_FOR(str) \
+        snprintf ( for_buffer[for_buffer_idx], \
+                   sizeof ( for_buffer[for_buffer_idx] ), \
+                   str ), for_buffer_idx++;
+
 
 %}
 
@@ -563,7 +575,11 @@ Operand
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
                 if ( !is_assignment ) {
-                    code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                    if ( for_flag ) {
+                        REC_FOR_WF ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                    }
+                    else
+                        code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
                     if ( in_if_condition )
                         REC_BUFFER_WF ( "%s %d",
                                         get_ls_name ( $$.type, 0 ),
@@ -627,6 +643,8 @@ Literal
         $$.i_var = $<i_var>1;
         printf ( "INT_LIT %d\n", $$.i_var );
         if ( !is_return ) {
+            if ( for_flag )
+                REC_FOR_WF ( "ldc %d", $$.i_var );
             code ( "ldc %d", $$.i_var );
             if ( in_if_condition )
                 REC_BUFFER_WF ( "ldc %d", $$.i_var );
@@ -780,20 +798,40 @@ AssignmentStmt
 
             if ( $2 != OP_VAL_ASSIGN ) {
                 get_op_inst ( buffer, $1.type, ops[op_idx] );
-                code ( "%s", buffer );
+                if ( for_flag ) {
+                    REC_FOR_WF ( "%s", buffer );
+                }
+                else
+                    code ( "%s", buffer );
             }
             if ( $1.type == OBJECT_TYPE_FLOAT && $3.type == OBJECT_TYPE_INT )
                 codeRaw ( "i2f" );
             else if ( $1.type == OBJECT_TYPE_INT && $3.type == OBJECT_TYPE_FLOAT )
                 codeRaw ( "f2i" );
-            code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
+            if ( for_flag ) {
+                REC_FOR_WF ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
+            }
+            else
+                code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
 
             op_idx--;
         }
 
+        if ( for_flag )
+            for_assignment_addr = tmp -> addr;
     }
-    | Operand INC_ASSIGN { ops[++op_idx] = OP_INC_ASSIGN; }
-    | Operand DEC_ASSIGN { ops[++op_idx] = OP_DEC_ASSIGN; }
+    | Operand INC_ASSIGN {
+        ops[++op_idx] = OP_INC_ASSIGN;
+        if ( for_flag ) {
+            Node *tmp = Query_Symbol ( $1.name );
+            for_assignment_addr = tmp -> addr, for_delta = 1;
+        }
+    }
+    | Operand DEC_ASSIGN {
+        ops[++op_idx] = OP_DEC_ASSIGN;
+        if ( for_flag )
+            for_assignment_addr = Query_Symbol ( $1.name ) -> addr, for_delta = -1;
+    }
 ;
 
 assign_op
@@ -846,9 +884,7 @@ IfCondition
 ;
 
 Condition
-    : Expression {
-        // code ( "goto Exit_%d", lb_idx );
-    }
+    : Expression
 ;
 
 Block
@@ -865,16 +901,17 @@ Block
 WhileStmt
     : WHILE {
         puts ( "WHILE" );
-        code ( "For_%d:", fr_cnt );
-        in_loop = in_if_condition = if_flag = true;
+        for_stack[for_stack_idx] = fr_cnt++;
+        code ( "For_%d:", for_stack[for_stack_idx++] );
+        in_loop = if_flag = true;
     } Condition {
-        in_if_condition = if_flag = false;
+        if_flag = false;
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
     } Block {
-        code ( "goto For_%d", fr_cnt++ );
+        code ( "goto For_%d", for_stack[--for_stack_idx] );
         code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         in_loop = false;
     }
@@ -883,8 +920,17 @@ WhileStmt
 ForStmt
     : FOR {
         puts ( "FOR" );
+        for_stack[for_stack_idx] = fr_cnt++;
         Create_Table();
-    } ForIn '{' StmtList '}' { Dump_Table(); }
+        in_loop = true;
+    } ForIn Block {
+        for ( int i = 0 ; i < for_buffer_idx ; i++ )
+            code ( "    %s", for_buffer[i] );
+        code ( "    goto For_%d", for_stack[--for_stack_idx] );
+        code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
+        Dump_Table();
+        in_loop = false;
+    }
 ;
 
 ForIn
@@ -893,10 +939,27 @@ ForIn
         Insert_Symbol ( $<s_var>3, tmp -> type, "", yylineno );
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
     } ')'
-    | '(' ForDeclare { if_flag = true; } Condition { if_flag = false; } ';' AssignmentStmt {
+    | '(' ForDeclare {
+        for_buffer_idx = 0;
+        if_flag = in_if_condition = true;
+        code ( "For_%d:", for_stack[for_stack_idx++] );
+    } Condition {
+        if_flag = in_if_condition = false;
+        codeRaw ( "ldc 1" );
+        Label_stack[Label_stack_idx] = lb_idx++;
+        code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
+        code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
+        for_flag = true;
+    } ';' AssignmentStmt {
+        for_flag = false;
         while ( op_idx ) {
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
-            code ( "%s", buffer );
+            if ( !strcmp ( buffer, "iinc" ) ) {
+                for_buffer_idx--;
+                REC_FOR_WF ( "%s %d %d", buffer, for_assignment_addr, for_delta );
+            }
+            else
+                REC_FOR_WF ( "%s", buffer );
             printf ( "%s\n", get_op_name ( ops[op_idx--] ) );
         }
     } ')'
