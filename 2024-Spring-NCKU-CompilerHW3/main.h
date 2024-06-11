@@ -47,6 +47,7 @@ char get_type(ObjectType);
 int Get_Level(void);
 void ScopeAddOne(void);
 void ScopeMinusOne(void);
+int get_scope(void);
 void c_exp_update(int);
 void if_status_update(int);
 void get_op_inst(char *, ObjectType, op_t);

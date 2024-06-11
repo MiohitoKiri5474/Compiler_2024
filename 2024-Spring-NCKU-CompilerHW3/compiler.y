@@ -7,11 +7,12 @@
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
     int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
-    int func_buffer_idx = 0, array_idx = 0;
+    int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0;
     bool is_bool = false, is_float = false, is_str = false, is_array = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
-    bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
+    bool is_return = false, is_assignment = false, in_if_condition = false;
+    bool in_loop[128] = { false };
     bool in_array = false, idk_peko = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
@@ -267,7 +268,10 @@ Stmt
     | AssignmentStmt { is_assignment = false; }
     | WhileStmt
     | ForStmt
-    | BREAK ';' { puts ( "BREAK" ); }
+    | BREAK ';' {
+        puts ( "BREAK" );
+        code ( "goto Exit_%d", Label_stack[Label_stack_idx - 2] );
+    }
     | FuncCallStmt
 ;
 
@@ -895,8 +899,8 @@ assign_op
 ;
 
 IfStmt
-    : IfCondition Block
-    | IfCondition Stmt
+    : IfCondition Block  { in_loop_idx--; }
+    | IfCondition Stmt   { in_loop_idx--; }
     | IfCondition Block ELSE {
         puts ( "ELSE" );
         for ( int i = 0 ; i < condition_idx ; i++ ) {
@@ -907,8 +911,11 @@ IfStmt
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpne Label_%d", Label_stack[Label_stack_idx] );
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
-    } Block
-    | IfCondition Block ELSE { puts ( "ELSE" ); } IfStmt
+    } Block { in_loop_idx--; }
+    | IfCondition Block ELSE {
+        in_loop_idx--;
+        puts ( "ELSE" );
+    } IfStmt
 ;
 
 IfCondition
@@ -926,6 +933,7 @@ IfCondition
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
+        in_loop_idx++;
     }
 ;
 
@@ -938,8 +946,9 @@ Block
         Create_Table();
         code ( "Label_%d:", Label_stack[Label_stack_idx++] );
     } StmtList '}' {
-        if ( !in_loop )
+        if ( !in_loop[in_loop_idx] ) {
             code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
+        }
         Dump_Table();
     }
 ;
@@ -949,7 +958,7 @@ WhileStmt
         puts ( "WHILE" );
         for_stack[for_stack_idx] = fr_cnt++;
         code ( "For_%d:", for_stack[for_stack_idx++] );
-        in_if_condition = in_loop = if_flag = true;
+        in_if_condition = in_loop[++in_loop_idx] = if_flag = true;
     } Condition {
         in_if_condition = if_flag = false;
         codeRaw ( "ldc 1" );
@@ -959,7 +968,7 @@ WhileStmt
     } Block {
         code ( "goto For_%d", for_stack[--for_stack_idx] );
         code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
-        in_loop = false;
+        in_loop[in_loop_idx--] = false;
     }
 ;
 
@@ -967,15 +976,15 @@ ForStmt
     : FOR {
         puts ( "FOR" );
         for_stack[for_stack_idx] = fr_cnt++;
+        in_loop[++in_loop_idx] = true;
         Create_Table();
-        in_loop = true;
     } ForIn Block {
         for ( int i = 0 ; i < for_buffer_idx ; i++ )
             code ( "    %s", for_buffer[i] );
         code ( "    goto For_%d", for_stack[--for_stack_idx] );
         code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         Dump_Table();
-        in_loop = false;
+        for_flag = in_loop[in_loop_idx--] = false;
     }
 ;
 
@@ -997,7 +1006,6 @@ ForIn
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
         for_flag = true;
     } ';' AssignmentStmt {
-        for_flag = false;
         while ( op_idx ) {
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
             if ( !strcmp ( buffer, "iinc" ) ) {

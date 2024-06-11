@@ -454,6 +454,11 @@ void ScopeMinusOne(void)
     scopeLevel--;
 }
 
+int get_scope(void)
+{
+    return scopeLevel;
+}
+
 char *get_op_name(op_t op)
 {
     if (op == OP_LBRA)
