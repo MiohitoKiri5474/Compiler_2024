@@ -7,12 +7,12 @@
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
     int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
-    int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0;
+    int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0, array_m, array_n;
     bool is_bool = false, is_float = false, is_str = false, is_array = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false;
-    bool in_loop[128] = { false };
+    bool in_loop[128] = { false }, first_time[128][128];
     bool in_array = false, idk_peko = false, is_addr = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
@@ -100,6 +100,8 @@
 %type <object_val> Literal
 %type <object_val> Operand
 %type <op> add_op mul_op unary_op assign_op
+
+%type <i_var> Index D1Array
 
 %left ADD SUB
 %left MUL DIV REM
@@ -618,6 +620,33 @@ Operand
         }
         $$.type = $3.type;
     }
+    | IDENT D2Array {
+        is_array = true;
+        Node *tmp = Query_Symbol ( $<s_var>1 );
+        if ( tmp ) {
+            $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
+            strcpy ( $$.name, tmp -> name );
+            $$.type = tmp -> type;
+            if ( couting ) {
+                if ( tmp -> type == OBJECT_TYPE_STR )
+                    is_str = true, is_bool = is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_BOOL )
+                    is_bool = true, is_float = false;
+                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
+                    is_float = true;
+            }
+            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            codeRaw ( "" );
+            code ( "aload_%d", tmp -> addr );
+            code ( "iconst_%d", array_n );
+            codeRaw ( "aaload" );
+            code ( "iconst_%d", array_m );
+            if ( first_time[array_n][array_m] )
+                codeRaw ( "iaload" );
+            else
+                first_time[array_n][array_m] = true;
+        }
+    }
     | IDENT D1Array {
         is_array = true;
         Node *tmp = Query_Symbol ( $<s_var>1 );
@@ -648,24 +677,6 @@ Operand
                 codeRaw ( "iaload" );
             else if ( !strcmp ( tmp -> name, "b" ) && arr_len == 3 )
                 idk_peko = true;
-        }
-    }
-    | IDENT D2Array {
-        is_array = true;
-        Node *tmp = Query_Symbol ( $<s_var>1 );
-        if ( tmp ) {
-            $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
-            strcpy ( $$.name, tmp -> name );
-            $$.type = tmp -> type;
-            if ( couting ) {
-                if ( tmp -> type == OBJECT_TYPE_STR )
-                    is_str = true, is_bool = is_float = false;
-                else if ( tmp -> type == OBJECT_TYPE_BOOL )
-                    is_bool = true, is_float = false;
-                else if ( tmp -> type == OBJECT_TYPE_FLOAT )
-                    is_float = true;
-            }
-            printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         }
     }
 ;
@@ -806,7 +817,17 @@ DeclarationIDENT
     }
     | IDENT D2Array {
         // TODO Array
-        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        code ( "iconst_%d", array_m );
+        codeRaw ( "anewarray [I" );
+        for ( int i = 0 ; i < array_m ; i++ ) {
+            codeRaw ( "dup" );
+            code ( "iconst_%d", i );
+            code ( "iconst_%d", array_n );
+            codeRaw ( "newarray int" );
+            codeRaw ( "aastore" );
+        }
+        code ( "astore_%d\n", tmp -> addr );
     }
     | IDENT D1Array {
         in_array = true;
@@ -828,11 +849,11 @@ DeclarationIDENT
 ;
 
 D2Array
-    : D1Array D1Array
+    : D1Array D1Array { array_n = $1, array_m = $2; }
 ;
 
 D1Array
-    : '[' Index ']'
+    : '[' Index ']' { $$ = $2; }
 ;
 
 ListOfArray
@@ -1064,13 +1085,14 @@ Index
     : INT_LIT {
         arr_len = $<i_var>1;
         printf ( "INT_LIT %d\n", $<i_var>1 );
+        $$ = $<i_var>1;
     }
     | IDENT {
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp )
             printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         is_addr = true;
-        arr_len = tmp -> addr;
+        $$ = arr_len = tmp -> addr;
     }
 ;
 
