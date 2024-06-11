@@ -249,7 +249,7 @@ StmtList
 ;
 
 Stmt
-    : { c_exp_update ( 1 ); } COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
+    : { c_exp_update ( 1 ); } COUT { Reset_treap(); couting = true; first_time[1][2] = true; } CoutParmListStmt ';' {
         printf ( "cout" );
         Print_List();
         couting = false;
