@@ -789,7 +789,9 @@ DeclarationIDENT
         code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT VAL_ASSIGN Expression {
-        Node *tmp = Insert_Symbol ( $<s_var>1, ( is_auto ? $3.type : declare_type ), "", yylineno );
+        if ( is_auto )
+            declare_type = $3.type;
+        Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
         code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
     }
     | IDENT D2Array {
