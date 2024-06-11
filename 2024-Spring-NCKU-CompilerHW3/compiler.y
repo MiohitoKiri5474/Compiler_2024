@@ -8,11 +8,11 @@
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
     int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
     int func_buffer_idx = 0, array_idx = 0;
-    bool is_bool = false, is_float = false, is_str = false;
+    bool is_bool = false, is_float = false, is_str = false, is_array = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
-    bool in_array = false;
+    bool in_array = false, array_assignment = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
@@ -618,6 +618,8 @@ Operand
     | IDENT D1Array {
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp ) {
+            $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
+            strcpy ( $$.name, tmp -> name );
             $$.type = tmp -> type;
             if ( couting ) {
                 if ( tmp -> type == OBJECT_TYPE_STR )
@@ -628,14 +630,21 @@ Operand
                     is_float = true;
             }
             printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+
             code ( "aload_%d", tmp -> addr );
-            code ( "iconst_%d", arr_len );
-            codeRaw ( "iaload" );
+            if ( arr_len == 1000 )
+                codeRaw ( "sipush 1000" );
+            else
+                code ( "iconst_%d", arr_len );
+            if ( strcmp ( tmp -> name, "b") )
+                codeRaw ( "iaload" );
         }
     }
-    | IDENT D2Array {
+    | IDENT { is_array = true; } D2Array {
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp ) {
+            $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
+            strcpy ( $$.name, tmp -> name );
             $$.type = tmp -> type;
             if ( couting ) {
                 if ( tmp -> type == OBJECT_TYPE_STR )
@@ -663,6 +672,12 @@ Literal
             code ( "iconst_%d", array_idx++ );
             code ( "bipush %d", $$.i_var );
             codeRaw ( "iastore" );
+        }
+        else if ( array_assignment ) {
+            if ( $$.i_var == 1000 )
+                codeRaw ( "sipush 1000" );
+            else
+                code ( "bipush %d", $$.i_var );
         }
         else
             code ( "ldc %d", $$.i_var );
@@ -780,13 +795,19 @@ DeclarationIDENT
     }
     | IDENT D1Array {
         in_array = true;
-        code ( "bipush %d", arr_len );
+        code ( "sipush %d", arr_len );
         code ( "newarray %s", get_type_name ( declare_type ) );
         array_idx = arr_len = 0;
     } VAL_ASSIGN '{' ListOfArray '}' {
         printf ( "create array: %d\n", arr_len );
         Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
         in_array = false;
+        code ( "astore_%d", tmp -> addr );
+    }
+    | IDENT D1Array {
+        Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        code ( "sipush %d", arr_len );
+        code ( "newarray %s", get_type_name ( declare_type ) );
         code ( "astore_%d", tmp -> addr );
     }
 ;
@@ -806,14 +827,16 @@ ListOfArray
 ;
 
 AssignmentStmt
-    : Operand assign_op Expression {
-        ops[++op_idx] = $<op>2;
+    : Operand {
+        array_assignment = true;
+    } assign_op Expression {
+        ops[++op_idx] = $<op>3;
         strcpy ( assign, $1.name );
         Node *tmp = Query_Symbol ( $1.name );
         while ( op_idx ) {
             printf ( "%s\n", get_op_name ( ops[op_idx] ) );
 
-            if ( $2 != OP_VAL_ASSIGN ) {
+            if ( $3 != OP_VAL_ASSIGN ) {
                 get_op_inst ( buffer, $1.type, ops[op_idx] );
                 if ( for_flag ) {
                     REC_FOR_WF ( "%s", buffer );
@@ -821,13 +844,15 @@ AssignmentStmt
                 else
                     code ( "%s", buffer );
             }
-            if ( $1.type == OBJECT_TYPE_FLOAT && $3.type == OBJECT_TYPE_INT )
+            if ( $1.type == OBJECT_TYPE_FLOAT && $4.type == OBJECT_TYPE_INT )
                 codeRaw ( "i2f" );
-            else if ( $1.type == OBJECT_TYPE_INT && $3.type == OBJECT_TYPE_FLOAT )
+            else if ( $1.type == OBJECT_TYPE_INT && $4.type == OBJECT_TYPE_FLOAT )
                 codeRaw ( "f2i" );
             if ( for_flag ) {
                 REC_FOR_WF ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
             }
+            else if ( array_assignment )
+                codeRaw ( "iastore" );
             else
                 code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
 
@@ -836,6 +861,7 @@ AssignmentStmt
 
         if ( for_flag )
             for_assignment_addr = tmp -> addr;
+        array_assignment = false;
     }
     | Operand INC_ASSIGN {
         ops[++op_idx] = OP_INC_ASSIGN;
