@@ -26,6 +26,7 @@ typedef struct _node {
     int idx, addr, lineno;
     int sz, pri;
     char name[1024], func[1024], argument[1024];
+    int value;
 
     ObjectType type, return_type;
 } Node;
@@ -61,6 +62,7 @@ Node *Insert_Head(Node *, Node *);
 Node *Insert_Tail(Node *, Node *);
 Node *Insert_Symbol(char *, ObjectType, char *, int);
 void Update_Symbol(char *, char *);
+void Update_Symbol_Value(char *, int);
 bool update(Node **, char *, char *);
 void Insert_Node(Node *);
 Table *New_Table(void);
@@ -68,6 +70,7 @@ void Create_Table();
 void Dump_Table();
 void Print_Treap(Node **o);
 Node *Query_Symbol(char *);
+int Query_Symbol_Value(char *);
 Node *dfs(Node **, char *);
 
 typedef struct _treap {

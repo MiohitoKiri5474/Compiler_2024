@@ -13,7 +13,7 @@
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false;
     bool in_loop[128] = { false };
-    bool in_array = false, idk_peko = false;
+    bool in_array = false, idk_peko = false, is_addr = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
@@ -318,7 +318,7 @@ CoutParmListStmt
 
 Expression
     : UnaryExpr {
-        $$.type = $1.type;
+        $$ = $1;
     }
     | Expression binary_op {
         if ( ( $<op>2 == OP_LOR || $<op>2 == OP_LAN ) && !if_flag ) {
@@ -539,7 +539,7 @@ Expression
 ;
 
 UnaryExpr
-    : PrimaryExpr { $$.type = $1.type; }
+    : PrimaryExpr { $$ = $1; }
     | unary_op UnaryExpr {
         $$.type = $2.type;
         if ( $$.type == OBJECT_TYPE_INT )
@@ -560,13 +560,13 @@ PrimaryExpr
             printf ( "Cast to %s\n", get_type_name ( cast_type ) );
             is_cast = false;
         }
-        $$.type = $1.type;
+        $$ = $1;
     }
     | FuncCallStmt
 ;
 
 Operand
-    : Literal
+    : Literal { $$ = $1; }
     | IDENT {
         if ( !strcmp ( "endl", $<s_var>1 ) ) {
             $$.type = OBJECT_TYPE_STR;
@@ -579,6 +579,8 @@ Operand
                 $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
                 strcpy ( $$.name, tmp -> name );
                 $$.type = tmp -> type;
+                if ( $$.type == OBJECT_TYPE_INT )
+                    $$.i_var = Query_Symbol_Value ( tmp -> name );
                 if ( couting ) {
                     if ( tmp -> type == OBJECT_TYPE_STR )
                         is_str = true, is_bool = is_float = false;
@@ -588,15 +590,15 @@ Operand
                         is_float = true;
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
-                    if ( for_flag ) {
-                        REC_FOR_WF ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
-                    }
-                    else
-                        code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
-                    if ( in_if_condition )
-                        REC_BUFFER_WF ( "%s %d",
-                                        get_ls_name ( $$.type, 0 ),
-                                        tmp -> addr );
+                if ( for_flag ) {
+                    REC_FOR_WF ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                }
+                else
+                    code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
+                if ( in_if_condition )
+                    REC_BUFFER_WF ( "%s %d",
+                                    get_ls_name ( $$.type, 0 ),
+                                    tmp -> addr );
             }
         }
     }
@@ -636,6 +638,10 @@ Operand
             code ( "aload_%d", tmp -> addr );
             if ( arr_len == 1000 )
                 codeRaw ( "sipush 1000" );
+            else if ( is_addr ) {
+                code ( "iload %d", arr_len );
+                is_addr = false;
+            }
             else
                 code ( "iconst_%d", arr_len );
             if ( strcmp ( tmp -> name, "b" ) || ( !strcmp ( tmp -> name, "b" ) && arr_len != 1000 && idk_peko ) )
@@ -869,6 +875,8 @@ AssignmentStmt
         if ( for_flag )
             for_assignment_addr = tmp -> addr;
         is_array = false;
+        if ( $1.type == OBJECT_TYPE_INT )
+            Update_Symbol_Value ( $1.name, $4.i_var );
     }
     | Operand INC_ASSIGN {
         ops[++op_idx] = OP_INC_ASSIGN;
@@ -903,10 +911,8 @@ IfStmt
     | IfCondition Stmt   { in_loop_idx--; }
     | IfCondition Block ELSE {
         puts ( "ELSE" );
-        for ( int i = 0 ; i < condition_idx ; i++ ) {
+        for ( int i = 0 ; i < condition_idx ; i++ )
             code ( "%s", condition_buffer[i] );
-            printf ( "\t%s\n", condition_buffer[i] );
-        }
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpne Label_%d", Label_stack[Label_stack_idx] );
@@ -984,7 +990,7 @@ ForStmt
         code ( "    goto For_%d", for_stack[--for_stack_idx] );
         code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         Dump_Table();
-        for_flag = in_loop[in_loop_idx--] = false;
+        in_loop[in_loop_idx--] = false;
     }
 ;
 
@@ -999,13 +1005,14 @@ ForIn
         if_flag = in_if_condition = true;
         code ( "For_%d:", for_stack[for_stack_idx++] );
     } Condition {
-        if_flag = in_if_condition = false;
+        in_if_condition = false;
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpeq Label_%d", Label_stack[Label_stack_idx] );
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
         for_flag = true;
     } ';' AssignmentStmt {
+        for_flag = false;
         while ( op_idx ) {
             get_op_inst ( buffer, $<object_val>1.type, ops[op_idx] );
             if ( !strcmp ( buffer, "iinc" ) ) {
@@ -1022,7 +1029,12 @@ ForIn
 ;
 
 ForDeclare
-    :  DeclarationStmt
+    :  VARIABLE_T IDENT {
+    } assign_op Literal {
+        Node *tmp = Insert_Symbol ( $<s_var>2, $1, "", yylineno );
+        Update_Symbol_Value ( $<s_var>2, $5.i_var );
+        code ( "%s %d", get_ls_name ( declare_type, 1 ), tmp -> addr );
+    } ';'
     | ';'
 ;
 
@@ -1057,6 +1069,8 @@ Index
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp )
             printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+        is_addr = true;
+        arr_len = tmp -> addr;
     }
 ;
 

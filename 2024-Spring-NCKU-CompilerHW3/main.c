@@ -135,6 +135,11 @@ void Update_Symbol(char *name, char *value)
     update(&symbol_table[idx]->treap, name, value);
 }
 
+void Update_Symbol_Value(char *name, int value)
+{
+    Query_Symbol(name)->value = value;
+}
+
 bool update(Node **_o, char *name, char *value)
 {
     Node *o = *_o;
@@ -159,6 +164,11 @@ Node *merge(Node *a, Node *b)
     b->l = merge(a, b->l);
     up(&b);
     return b;
+}
+
+int Query_Symbol_Value(char *name)
+{
+    return Query_Symbol(name)->value;
 }
 
 Node *Query_Symbol(char *name)
