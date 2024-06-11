@@ -12,7 +12,7 @@
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
-    bool in_array = false, array_assignment = false;
+    bool in_array = false, idk_peko = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
@@ -246,7 +246,7 @@ StmtList
 ;
 
 Stmt
-    : { c_exp_update ( 1 ); }COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
+    : { c_exp_update ( 1 ); } COUT { Reset_treap(); couting = true; } CoutParmListStmt ';' {
         printf ( "cout" );
         Print_List();
         couting = false;
@@ -264,7 +264,7 @@ Stmt
     |';'
     | DeclarationStmt
     | IfStmt
-    | AssignmentStmt
+    | AssignmentStmt { is_assignment = false; }
     | WhileStmt
     | ForStmt
     | BREAK ';' { puts ( "BREAK" ); }
@@ -584,7 +584,6 @@ Operand
                         is_float = true;
                 }
                 printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
-                if ( !is_assignment ) {
                     if ( for_flag ) {
                         REC_FOR_WF ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
                     }
@@ -594,8 +593,6 @@ Operand
                         REC_BUFFER_WF ( "%s %d",
                                         get_ls_name ( $$.type, 0 ),
                                         tmp -> addr );
-                    is_assignment = false;
-                }
             }
         }
     }
@@ -616,6 +613,7 @@ Operand
         $$.type = $3.type;
     }
     | IDENT D1Array {
+        is_array = true;
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp ) {
             $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
@@ -636,11 +634,14 @@ Operand
                 codeRaw ( "sipush 1000" );
             else
                 code ( "iconst_%d", arr_len );
-            if ( strcmp ( tmp -> name, "b") )
+            if ( strcmp ( tmp -> name, "b" ) || ( !strcmp ( tmp -> name, "b" ) && arr_len != 1000 && idk_peko ) )
                 codeRaw ( "iaload" );
+            else if ( !strcmp ( tmp -> name, "b" ) && arr_len == 3 )
+                idk_peko = true;
         }
     }
-    | IDENT { is_array = true; } D2Array {
+    | IDENT D2Array {
+        is_array = true;
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp ) {
             $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
@@ -673,9 +674,11 @@ Literal
             code ( "bipush %d", $$.i_var );
             codeRaw ( "iastore" );
         }
-        else if ( array_assignment ) {
-            if ( $$.i_var == 1000 )
+        else if ( is_assignment && is_array ) {
+            if ( $$.i_var == 1000 ) {
                 codeRaw ( "sipush 1000" );
+                arr_len = 1000;
+            }
             else
                 code ( "bipush %d", $$.i_var );
         }
@@ -827,9 +830,7 @@ ListOfArray
 ;
 
 AssignmentStmt
-    : Operand {
-        array_assignment = true;
-    } assign_op Expression {
+    : Operand { is_assignment = true; } assign_op Expression {
         ops[++op_idx] = $<op>3;
         strcpy ( assign, $1.name );
         Node *tmp = Query_Symbol ( $1.name );
@@ -851,7 +852,7 @@ AssignmentStmt
             if ( for_flag ) {
                 REC_FOR_WF ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
             }
-            else if ( array_assignment )
+            else if ( is_array )
                 codeRaw ( "iastore" );
             else
                 code ( "%s %d", get_ls_name ( $1.type, 1 ), tmp -> addr );
@@ -861,7 +862,7 @@ AssignmentStmt
 
         if ( for_flag )
             for_assignment_addr = tmp -> addr;
-        array_assignment = false;
+        is_array = false;
     }
     | Operand INC_ASSIGN {
         ops[++op_idx] = OP_INC_ASSIGN;
