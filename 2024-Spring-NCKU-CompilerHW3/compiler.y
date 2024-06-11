@@ -7,17 +7,20 @@
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
     int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
+    int func_buffer_idx = 0, array_idx = 0;
     bool is_bool = false, is_float = false, is_str = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false, in_loop = false;
-    ObjectType cast_type, declare_type;
+    bool in_array = false;
+    ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
     char buffer[128];
     char assign[128];
     char condition_buffer[1024][128];
     char for_buffer[1024][128];
+    char func_buffer[128];
     int Label_stack[128], for_stack[128];
 
     #define REC_BUFFER_WF(format, ...) \
@@ -131,6 +134,7 @@ DefineVariableStmt
 /* Function */
 FunctionDefStmt
     : VARIABLE_T IDENT {
+        func_buffer_idx = 0;
         printf ( "func: %s\n", $<s_var>2 );
         bool tmp = !strcmp ( $2, "main" );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "func", yylineno + ( tmp ? 0 : 1 ) );
@@ -147,10 +151,15 @@ FunctionDefStmt
         Update_Symbol ( $2, $5 );
 
         ScopeMinusOne();
-        if ( !strcmp ( $2, "main" ) )
+        if ( !strcmp ( $2, "main" ) ) {
         	codeRaw ( ".method public static main([Ljava/lang/String;)V" );
-        else
-			code ( ".method public statis %s()V\n", $2 );
+            current_return_type = OBJECT_TYPE_VOID;
+        }
+        else {
+			code ( ".method public static %s(%s)%s\n", $2, func_buffer, get_print_type ( $1 ) );
+            update_argument_return ( $2, func_buffer, $1 );
+            current_return_type = $1;
+        }
         ScopeAddOne();
         codeRaw ( ".limit stack 128" );
         codeRaw ( ".limit locals 128\n" );
@@ -178,6 +187,7 @@ FunctionParameterStmtList
             strcat ( $$, tmp );
 
         Insert_Symbol ( $<s_var>4, $3, "", yylineno );
+        strcat ( func_buffer, get_print_type ( $3 ) );
     }
     | VARIABLE_T IDENT '[' ']' {
         char tmp[2];
@@ -193,7 +203,6 @@ FunctionParameterStmtList
         else
             strcat ( $$, tmp );
         Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
-
     }
     | VARIABLE_T IDENT {
         char tmp[2];
@@ -209,6 +218,7 @@ FunctionParameterStmtList
             strcat ( $$, tmp );
 
         Insert_Symbol ( $<s_var>2, $1, "", yylineno );
+        strcat ( func_buffer, get_print_type ( $1 ) );
     }
     | VARIABLE_T IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>4 ); } ']' {
         char tmp[2];
@@ -244,7 +254,7 @@ Stmt
     }
     | RETURN { is_return = true; } Expression ';' {
         puts ( "RETURN" );
-        codeRaw ( "return\n" );
+        code ( "%sreturn\n", get_return_type ( current_return_type ) );
     }
     | RETURN ';' {
         puts ( "RETURN" );
@@ -478,7 +488,7 @@ Expression
             else if ( ops[op_idx] == OP_EQL || ops[op_idx] == OP_NEQ ||
                         ops[op_idx] == OP_LES || ops[op_idx] == OP_LEQ ||
                         ops[op_idx] == OP_GTR || ops[op_idx] == OP_GEQ ) {
-                if ( !in_if_condition ) {
+                if ( !in_if_condition && !is_return ) {
                     code ( "%s L_cmp_%d", buffer, bf_cnt++ );
                     codeRaw ( "ldc 0" );
                     code ( "goto L_cmp_%d", bf_cnt++ );
@@ -618,6 +628,9 @@ Operand
                     is_float = true;
             }
             printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
+            code ( "aload_%d", tmp -> addr );
+            code ( "iconst_%d", arr_len );
+            codeRaw ( "iaload" );
         }
     }
     | IDENT D2Array {
@@ -642,55 +655,51 @@ Literal
         $$.type = OBJECT_TYPE_INT;
         $$.i_var = $<i_var>1;
         printf ( "INT_LIT %d\n", $$.i_var );
-        if ( !is_return ) {
-            if ( for_flag ) {
-                REC_FOR_WF ( "ldc %d", $$.i_var );
-            }
-            else
-                code ( "ldc %d", $$.i_var );
-            if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc %d", $$.i_var );
+        if ( for_flag ) {
+            REC_FOR_WF ( "ldc %d", $$.i_var );
         }
+        else if ( in_array ) {
+            codeRaw ( "dup" );
+            code ( "iconst_%d", array_idx++ );
+            code ( "bipush %d", $$.i_var );
+            codeRaw ( "iastore" );
+        }
+        else
+            code ( "ldc %d", $$.i_var );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "ldc %d", $$.i_var );
     }
     | FLOAT_LIT {
         $$.type = OBJECT_TYPE_FLOAT;
         $$.f_var = $<f_var>1;
         printf ( "FLOAT_LIT %f\n", $$.f_var );
-        if ( !is_return ) {
-            code ( "ldc %f", $$.f_var );
-            if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc %f", $$.f_var );
-        }
+        code ( "ldc %f", $$.f_var );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "ldc %f", $$.f_var );
     }
     | BOOL_LIT {
         $$.type = OBJECT_TYPE_BOOL;
         $$.b_var = $<b_var>1;
         printf ( "BOOL_LIT %s\n", $$.b_var ? "TRUE" : "FALSE" );
-        if ( !is_return ) {
-            code ( "ldc %d", $$.b_var );
-            if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc %d", $$.b_var );
-        }
+        code ( "ldc %d", $$.b_var );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "ldc %d", $$.b_var );
     }
     | STR_LIT {
         $$.type = OBJECT_TYPE_STR;
         $$.s_var = $<s_var>1;
         printf ( "STR_LIT \"%s\"\n", $$.s_var );
-        if ( !is_return ) {
-            code ( "ldc \"%s\"", $$.s_var );
-            if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc \"%s\"", $$.s_var );
-        }
+        code ( "ldc \"%s\"", $$.s_var );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "ldc \"%s\"", $$.s_var );
     }
     | CHAR_LIT {
         $$.type = OBJECT_TYPE_CHAR;
         $$.c_var = $<c_var>1;
         printf ( "CHAR_LIT %c\n", $$.c_var );
-        if ( !is_return ) {
-            code ( "ldc \"%c\"", $$.c_var );
-            if ( in_if_condition )
-                REC_BUFFER_WF ( "ldc \"%c\"", $$.c_var );
-        }
+        code ( "ldc \"%c\"", $$.c_var );
+        if ( in_if_condition )
+            REC_BUFFER_WF ( "ldc \"%c\"", $$.c_var );
     }
 ;
 
@@ -769,10 +778,16 @@ DeclarationIDENT
         // TODO Array
         Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
     }
-    | IDENT D1Array { arr_len = 0; } VAL_ASSIGN '{' ListOfArray '}' {
-        // TODO Array
+    | IDENT D1Array {
+        in_array = true;
+        code ( "bipush %d", arr_len );
+        code ( "newarray %s", get_type_name ( declare_type ) );
+        array_idx = arr_len = 0;
+    } VAL_ASSIGN '{' ListOfArray '}' {
         printf ( "create array: %d\n", arr_len );
-        Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        Node *tmp = Insert_Symbol ( $<s_var>1, declare_type, "", yylineno );
+        in_array = false;
+        code ( "astore_%d", tmp -> addr );
     }
 ;
 
@@ -980,11 +995,13 @@ FuncCallStmt
         Node *tmp = Query_Symbol ( $<s_var>1 );
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         printf ( "call: %s%s\n", tmp -> name, tmp -> func );
+        code ( "invokestatic Main/%s", $1 );
     }
     | IDENT '(' ArgumentList ')' {
         Node *tmp = Query_Symbol ( $<s_var>1 );
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         printf ( "call: %s%s\n", tmp -> name, tmp -> func );
+        code ( "invokestatic Main/%s(%s)%s", $1, tmp -> argument, get_print_type ( tmp -> return_type ) );
     }
 ;
 
@@ -996,6 +1013,7 @@ ArgumentList
 
 Index
     : INT_LIT {
+        arr_len = $<i_var>1;
         printf ( "INT_LIT %d\n", $<i_var>1 );
     }
     | IDENT {

@@ -14,15 +14,6 @@ char *yyInputFileName;
 bool compileError;
 
 #define toupper(_char) (_char - (char) 32)
-const char *objectTypeName[] = {
-    [OBJECT_TYPE_UNDEFINED] = "undefined",
-    [OBJECT_TYPE_VOID] = "void",
-    [OBJECT_TYPE_INT] = "int",
-    [OBJECT_TYPE_FLOAT] = "float",
-    [OBJECT_TYPE_BOOL] = "bool",
-    [OBJECT_TYPE_STR] = "string",
-    [OBJECT_TYPE_FUNCTION] = "function",
-};
 
 char *yyInputFileName;
 bool compileError;
@@ -197,6 +188,7 @@ Node *Create_Node(char *name, ObjectType type, char *func, int lineno)
     res->pri = rand();
 
     res->type = type;
+    res->return_type = OBJECT_TYPE_VOID;
     strcpy(res->name, name);
     strcpy(res->func, func);
     res->lineno = lineno;
@@ -208,6 +200,13 @@ Node *Create_Node(char *name, ObjectType type, char *func, int lineno)
         strcpy(res->func, "-\0");
     }
     return res;
+}
+
+void update_argument_return(char *name, char *argument, ObjectType type)
+{
+    Node *tmp = Query_Symbol(name);
+    strcpy(tmp->argument, argument);
+    tmp->return_type = type;
 }
 
 Node *Insert_Tail(Node *o, Node *n)
@@ -331,6 +330,24 @@ char *get_type_name(ObjectType type)
     }
 }
 
+char *get_return_type(ObjectType type)
+{
+    switch (type) {
+    case OBJECT_TYPE_INT:
+    case OBJECT_TYPE_LONG:
+    case OBJECT_TYPE_BOOL:
+        return "i";
+    case OBJECT_TYPE_DOUBLE:
+    case OBJECT_TYPE_FLOAT:
+        return "f";
+    case OBJECT_TYPE_VOID:
+        return "";
+    default:
+        return "ERROR";
+    }
+}
+
+
 char *get_print_type(ObjectType type)
 {
     switch (type) {
@@ -350,6 +367,8 @@ char *get_print_type(ObjectType type)
         return "Ljava/lang/String;";
     case OBJECT_TYPE_UNDEFINED:
         return "Z";
+    case OBJECT_TYPE_VOID:
+        return "V";
     default:
         return "ERROR";
     }
@@ -645,15 +664,18 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    ScopeAddOne();
     codeRaw(".source hw3.j");
     codeRaw(".class public Main");
     codeRaw(".super java/lang/Object\n");
-    scopeLevel = -1;
+    ScopeMinusOne();
 
     yyparse();
     printf("Total lines: %d\n", yylineno);
     fclose(yyin);
 
+    while (scopeLevel)
+        Dump_Table();
     yylex_destroy();
     return 0;
 }

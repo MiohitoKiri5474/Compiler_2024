@@ -5,9 +5,9 @@
 #include <stdio.h>
 
 #define code(format, ...) \
-    fprintf(yyout, "%*s" format "\n", scopeLevel << 2, "", __VA_ARGS__)
+    fprintf(yyout, "%*s" format "\n", ( scopeLevel - 1 ) << 2, "", __VA_ARGS__)
 #define codeRaw(code) \
-    fprintf(yyout, "%*s" code "\n", scopeLevel << 2, "")
+    fprintf(yyout, "%*s" code "\n", ( scopeLevel - 1 ) << 2, "")
 
 extern FILE* yyout;
 extern FILE* yyin;
@@ -25,9 +25,9 @@ typedef struct _node {
     struct _node *l, *r;
     int idx, addr, lineno;
     int sz, pri;
-    char name[1024], func[1024];
+    char name[1024], func[1024], argument[1024];
 
-    ObjectType type;
+    ObjectType type, return_type;
 } Node;
 
 typedef struct _table {
@@ -36,8 +36,11 @@ typedef struct _table {
 } Table;
 
 int max(int, int);
+Node *Create_Node(char *, ObjectType, char *, int);
+void update_argument_return(char *, char *, ObjectType);
 char *get_op_name(op_t);
 char *get_type_name(ObjectType);
+char *get_return_type(ObjectType);
 char *get_print_type(ObjectType);
 int get_op_priority(op_t);
 char get_type(ObjectType);
