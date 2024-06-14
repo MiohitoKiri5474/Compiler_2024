@@ -23,6 +23,7 @@ int scopeLevel = 0;
 int funcLineNo = 0;
 int variableAddress = 0;
 int addr;
+int arg_idx;
 int c_exp;
 int if_status;
 ObjectType variableIdentType;
@@ -33,6 +34,11 @@ Node *table_tmp[1024];
 int table_tmp_idx[1024];
 treap *root;
 IDENT_List *IDENT_head = NULL, *IDENT_tail = NULL;
+
+void reset_addr(void)
+{
+    arg_idx = 0;
+}
 
 // treap for cout
 treap *New_treap(char *name)
@@ -258,6 +264,23 @@ Node *Insert_Symbol(char *name, ObjectType type, char *func, int lineno)
     return tmp;
 }
 
+Node *Insert_Symbol_Argument(char *name,
+                             ObjectType type,
+                             char *func,
+                             int lineno)
+{
+    int idx = scopeLevel - 1;
+    Node *tmp = Create_Node(
+        name, type, func,
+        lineno - (!strcmp(name, "argv") || !strcmp(name, "main") ? 0 : 1));
+    tmp->addr = arg_idx++;
+    if (!table_list[idx])
+        table_tmp[table_tmp_idx[idx]++] = tmp;
+    else
+        Insert_Node(tmp);
+    return tmp;
+}
+
 void Create_Table()
 {
     table_list[scopeLevel] = true;
@@ -356,7 +379,6 @@ char *get_return_type(ObjectType type)
         return "ERROR";
     }
 }
-
 
 char *get_print_type(ObjectType type)
 {
@@ -539,7 +561,7 @@ char *get_op_name(op_t op)
     case OP_INC_ASSIGN:
         return "INC";
     case OP_DEC_ASSIGN:
-        return "DEC";
+        return "INC";
     case OP_LSHIFT:
         return "SHL";
     case OP_RSHIFT:

@@ -5,44 +5,44 @@
 
     int yydebug = 1;
 
-    int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_buffer_idx = 0, for_assignment_addr = 0;
-    int condition_idx = 0, Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
-    int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0, array_m, array_n;
+    int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_assignment_addr = 0;
+    int Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
+    int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0, array_m, array_n, condition_buffer_idx = 0;
     bool is_bool = false, is_float = false, is_str = false, is_array = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
-    bool is_return = false, is_assignment = false, in_if_condition = false;
-    bool in_loop[128] = { false }, first_time[128][128];
+    bool is_return = false, is_assignment = false, in_if_condition = false, cout_arr = false;
+    bool in_loop[128] = { false };
     bool in_array = false, idk_peko = false, is_addr = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
     char buffer[128];
     char assign[128];
-    char condition_buffer[1024][128];
-    char for_buffer[1024][128];
+    char condition_buffer[128][1024][128];
+    char for_buffer[128][1024][128];
     char func_buffer[128];
-    int Label_stack[128], for_stack[128];
+    int Label_stack[128], for_stack[128], for_buffer_idx[128] = { 0 }, condition_idx[128] = { 0 };
 
     #define REC_BUFFER_WF(format, ...) \
-        snprintf ( condition_buffer[condition_idx], \
-                   sizeof ( condition_buffer[condition_idx] ), \
+        snprintf ( condition_buffer[get_scope()][condition_idx[get_scope()]], \
+                   sizeof ( condition_buffer[get_scope()][condition_idx[get_scope()]] ), \
                    format, \
-                   __VA_ARGS__ ), condition_idx++;
+                   __VA_ARGS__ ), condition_idx[get_scope()]++;
     #define REC_BUFFER(str) \
-        snprintf ( condition_buffer[condition_idx], \
-                   sizeof ( condition_buffer[condition_idx] ), \
-                   str ), condition_idx++;
+        snprintf ( condition_buffer[get_scope()][condition_idx[get_scope()]], \
+                   sizeof ( condition_buffer[get_scope()][condition_idx[get_scope()]] ), \
+                   str ), condition_idx[get_scope()]++;
 
     #define REC_FOR_WF(format, ...) \
-        snprintf ( for_buffer[for_buffer_idx], \
-                   sizeof ( for_buffer[for_buffer_idx] ), \
+        snprintf ( for_buffer[get_scope()][for_buffer_idx[get_scope()]], \
+                   sizeof ( for_buffer[get_scope()][for_buffer_idx[get_scope()]] ), \
                    format, \
-                   __VA_ARGS__ ), for_buffer_idx++;
+                   __VA_ARGS__ ), for_buffer_idx[get_scope()]++;
     #define REC_FOR(str) \
-        snprintf ( for_buffer[for_buffer_idx], \
-                   sizeof ( for_buffer[for_buffer_idx] ), \
-                   str ), for_buffer_idx++;
+        snprintf ( for_buffer[get_scope()][for_buffer_idx[get_scope()]], \
+                   sizeof ( for_buffer[get_scope()][for_buffer_idx[get_scope()]] ), \
+                   str ), for_buffer_idx[get_scope()]++;
 
 
 %}
@@ -145,6 +145,7 @@ FunctionDefStmt
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "func", yylineno + ( tmp ? 0 : 1 ) );
         first_argument = true;
         Create_Table();
+        reset_addr();
     } '(' FunctionParameterStmtList ')' {
         char tmp[2];
         tmp[0] = get_type ( $1 ), tmp[1] = '\0';
@@ -191,7 +192,7 @@ FunctionParameterStmtList
         else
             strcat ( $$, tmp );
 
-        Insert_Symbol ( $<s_var>4, $3, "", yylineno );
+        Insert_Symbol_Argument ( $<s_var>4, $3, "", yylineno );
         strcat ( func_buffer, get_print_type ( $3 ) );
     }
     | VARIABLE_T IDENT '[' ']' {
@@ -207,7 +208,7 @@ FunctionParameterStmtList
             strcat ( $$, "[Ljava/lang/String;" );
         else
             strcat ( $$, tmp );
-        Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
+        Insert_Symbol_Argument ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
     }
     | VARIABLE_T IDENT {
         char tmp[2];
@@ -222,7 +223,7 @@ FunctionParameterStmtList
         else
             strcat ( $$, tmp );
 
-        Insert_Symbol ( $<s_var>2, $1, "", yylineno );
+        Insert_Symbol_Argument ( $<s_var>2, $1, "", yylineno );
         strcat ( func_buffer, get_print_type ( $1 ) );
     }
     | VARIABLE_T IDENT '[' INT_LIT { printf ( "INT_LIT %d\n", $<i_var>4 ); } ']' {
@@ -238,7 +239,7 @@ FunctionParameterStmtList
         else
             strcat ( $$, tmp );
 
-        Insert_Symbol ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
+        Insert_Symbol_Argument ( $2, $1, "", yylineno - ( !strcmp ( "argv", $2 ) ? 1 : 0 ) );
 
     }
 
@@ -251,7 +252,10 @@ StmtList
 ;
 
 Stmt
-    : { c_exp_update ( 1 ); } COUT { Reset_treap(); couting = true; first_time[1][2] = true; } CoutParmListStmt ';' {
+    : { c_exp_update ( 1 ); } COUT {
+        Reset_treap();
+        couting = true;
+    } CoutParmListStmt ';' {
         printf ( "cout" );
         Print_List();
         couting = false;
@@ -295,6 +299,10 @@ CoutParmListStmt
         }
         else
             Insert_Cout ( get_type_name ( $2.type ) );
+        if ( cout_arr ) {
+            codeRaw ( "iaload" );
+            cout_arr = false;
+        }
         codeRaw ( "getstatic java/lang/System/out Ljava/io/PrintStream;" );
         codeRaw ( "swap" );
         code ( "invokevirtual java/io/PrintStream/print(%s)V\n", get_print_type ( $2.type ));
@@ -314,6 +322,10 @@ CoutParmListStmt
         }
         else
             Insert_Cout ( get_type_name ( $2.type ) );
+        if ( cout_arr ) {
+            codeRaw ( "iaload" );
+            cout_arr = false;
+        }
         codeRaw ( "getstatic java/lang/System/out Ljava/io/PrintStream;" );
         codeRaw ( "swap" );
         code ( "invokevirtual java/io/PrintStream/print(%s)V\n", get_print_type ( $2.type ));
@@ -624,6 +636,8 @@ Operand
     }
     | IDENT D2Array {
         is_array = true;
+        if ( couting )
+            cout_arr = true;
         Node *tmp = Query_Symbol ( $<s_var>1 );
         if ( tmp ) {
             $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
@@ -640,13 +654,16 @@ Operand
             printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
             codeRaw ( "" );
             code ( "aload_%d", tmp -> addr );
-            code ( "iconst_%d", array_n );
-            codeRaw ( "aaload" );
-            code ( "iconst_%d", array_m );
-            if ( first_time[array_n][array_m] )
-                codeRaw ( "iaload" );
+            if ( is_addr )
+                code ( "iload %d", array_n );
             else
-                first_time[array_n][array_m] = true;
+                code ( "iconst_%d", array_n );
+            codeRaw ( "aaload" );
+            if ( is_addr )
+                code ( "iload %d", array_m );
+            else
+                code ( "iconst_%d", array_m );
+            is_addr = false;
         }
     }
     | IDENT D1Array {
@@ -694,7 +711,7 @@ Literal
         else if ( in_array ) {
             codeRaw ( "dup" );
             code ( "iconst_%d", array_idx++ );
-            code ( "bipush %d", $$.i_var );
+            code ( "ldc %d", $$.i_var );
             codeRaw ( "iastore" );
         }
         else if ( is_assignment && is_array ) {
@@ -703,7 +720,7 @@ Literal
                 arr_len = 1000;
             }
             else
-                code ( "bipush %d", $$.i_var );
+                code ( "ldc %d", $$.i_var );
         }
         else
             code ( "ldc %d", $$.i_var );
@@ -940,8 +957,8 @@ IfStmt
     }
     | IfCondition Block ELSE {
         puts ( "ELSE" );
-        for ( int i = 0 ; i < condition_idx ; i++ )
-            code ( "%s", condition_buffer[i] );
+        for ( int i = 0 ; i < condition_idx[get_scope()] ; i++ )
+            code ( "%s", condition_buffer[get_scope()][i] );
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpne Label_%d", Label_stack[Label_stack_idx] );
@@ -956,7 +973,7 @@ IfStmt
 IfCondition
     : {
         if_flag = true;
-        condition_idx = 0;
+        condition_idx[get_scope()] = 0;
     } IF '(' {
         in_if_condition = true;
     } Condition {
@@ -1014,8 +1031,8 @@ ForStmt
         in_loop[++in_loop_idx] = true;
         Create_Table();
     } ForIn Block {
-        for ( int i = 0 ; i < for_buffer_idx ; i++ )
-            code ( "    %s", for_buffer[i] );
+        for ( int i = 0 ; i < for_buffer_idx[get_scope()] ; i++ )
+            code ( "    %s", for_buffer[get_scope()][i] );
         code ( "    goto For_%d", for_stack[--for_stack_idx] );
         code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
         Dump_Table();
@@ -1030,7 +1047,7 @@ ForIn
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
     } ')'
     | '(' ForDeclare {
-        for_buffer_idx = 0;
+        for_buffer_idx[get_scope()] = 0;
         if_flag = in_if_condition = true;
         code ( "For_%d:", for_stack[for_stack_idx++] );
     } Condition {

@@ -54,6 +54,7 @@ void if_status_update(int);
 void get_op_inst(char *, ObjectType, op_t);
 int get_c_exp(void);
 char *get_ls_name(ObjectType, int);
+void reset_addr(void);
 
 Node *New_Node(int, int);
 void up(Node **);
@@ -61,6 +62,7 @@ Node *merge(Node *, Node *);
 Node *Insert_Head(Node *, Node *);
 Node *Insert_Tail(Node *, Node *);
 Node *Insert_Symbol(char *, ObjectType, char *, int);
+Node *Insert_Symbol_Argument(char *, ObjectType, char *, int);
 void Update_Symbol(char *, char *);
 void Update_Symbol_Value(char *, int);
 bool update(Node **, char *, char *);
