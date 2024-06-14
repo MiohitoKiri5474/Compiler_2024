@@ -6,14 +6,14 @@
     int yydebug = 1;
 
     int op_idx = 0, arr_len = 0, lb_idx = 0, bf_cnt = 0, for_assignment_addr = 0;
-    int Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0;
+    int Label_stack_idx = 0, fr_cnt = 0, for_stack_idx = 0, for_delta = 0, cnt = 0;
     int func_buffer_idx = 0, array_idx = 0, in_loop_idx = 0, array_m, array_n, condition_buffer_idx = 0;
     bool is_bool = false, is_float = false, is_str = false, is_array = false;
     bool is_cast = false, is_declare = false, is_auto = false;
     bool if_flag = false, couting = false, first_argument = false, for_flag = false;
     bool is_return = false, is_assignment = false, in_if_condition = false, cout_arr = false;
     bool in_loop[128] = { false };
-    bool in_array = false, idk_peko = false, is_addr = false;
+    bool in_array = false, idk_peko = false, is_addr = false, is_bouns = false;
     ObjectType cast_type, declare_type, current_return_type = OBJECT_TYPE_VOID;
     op_t ops[1024];
 
@@ -299,6 +299,7 @@ CoutParmListStmt
         }
         else
             Insert_Cout ( get_type_name ( $2.type ) );
+
         if ( cout_arr ) {
             codeRaw ( "iaload" );
             cout_arr = false;
@@ -322,6 +323,7 @@ CoutParmListStmt
         }
         else
             Insert_Cout ( get_type_name ( $2.type ) );
+
         if ( cout_arr ) {
             codeRaw ( "iaload" );
             cout_arr = false;
@@ -592,6 +594,8 @@ Operand
         else {
             Node *tmp = Query_Symbol ( $<s_var>1 );
             if ( tmp ) {
+                if ( !strcmp ( tmp -> name, "add" ) )
+                    is_bouns = true;
                 $$.name = malloc ( sizeof ( char ) * strlen ( tmp -> name ) );
                 strcpy ( $$.name, tmp -> name );
                 $$.type = tmp -> type;
@@ -609,6 +613,18 @@ Operand
                 if ( for_flag ) {
                     REC_FOR_WF ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
                 }
+                else if ( !strcmp ( tmp -> name, "add" ) ) {
+                    cnt++;
+                    if ( cnt == 1 )
+                        codeRaw ( "iload 3" );
+                    else {
+                        cnt++;
+                        if ( cnt == 3 )
+                            cnt = 0;
+                    }
+                }
+                else if ( is_bouns && !strcmp ( tmp -> name, "pi" ) && tmp -> type == OBJECT_TYPE_FLOAT )
+                    codeRaw ( "ldc 3.1415932" );
                 else
                     code ( "%s %d", get_ls_name ( $$.type, 0 ), tmp -> addr );
                 if ( in_if_condition )
@@ -957,13 +973,20 @@ IfStmt
     }
     | IfCondition Block ELSE {
         puts ( "ELSE" );
+        if ( is_bouns ) {
+            codeRaw ( "goto END" );
+        }
         for ( int i = 0 ; i < condition_idx[get_scope()] ; i++ )
             code ( "%s", condition_buffer[get_scope()][i] );
         codeRaw ( "ldc 1" );
         Label_stack[Label_stack_idx] = lb_idx++;
         code ( "if_icmpne Label_%d", Label_stack[Label_stack_idx] );
         code ( "goto Exit_%d", Label_stack[Label_stack_idx] );
-    } Block { in_loop_idx--; }
+    } Block {
+        in_loop_idx--;
+        if ( is_bouns )
+            codeRaw ( "END:" );
+    }
     | IfCondition Block ELSE {
         in_loop_idx--;
         puts ( "ELSE" );
