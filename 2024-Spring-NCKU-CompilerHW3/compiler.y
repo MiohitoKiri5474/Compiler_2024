@@ -99,6 +99,7 @@
 %type <object_val> UnaryExpr
 %type <object_val> Literal
 %type <object_val> Operand
+%type <var_type> FuncCallStmt
 %type <op> add_op mul_op unary_op assign_op
 
 %type <i_var> Index D1Array
@@ -138,6 +139,7 @@ DefineVariableStmt
 FunctionDefStmt
     : VARIABLE_T IDENT {
         func_buffer_idx = 0;
+        strcpy ( func_buffer, "" );
         printf ( "func: %s\n", $<s_var>2 );
         bool tmp = !strcmp ( $2, "main" );
         Insert_Symbol ( $2, OBJECT_TYPE_FUNCTION, "func", yylineno + ( tmp ? 0 : 1 ) );
@@ -564,7 +566,7 @@ PrimaryExpr
         }
         $$ = $1;
     }
-    | FuncCallStmt
+    | FuncCallStmt { $$.type = $1; }
 ;
 
 Operand
@@ -929,7 +931,13 @@ assign_op
 
 IfStmt
     : IfCondition Block  { in_loop_idx--; }
-    | IfCondition Stmt   { in_loop_idx--; }
+    | IfCondition {
+        Label_stack[Label_stack_idx] = lb_idx++;
+        code ( "Label_%d:", Label_stack[Label_stack_idx] - 1 );
+    } Stmt {
+        code ( "Exit_%d:", Label_stack[--Label_stack_idx] );
+        in_loop_idx--;
+    }
     | IfCondition Block ELSE {
         puts ( "ELSE" );
         for ( int i = 0 ; i < condition_idx ; i++ )
@@ -1066,12 +1074,14 @@ FuncCallStmt
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         printf ( "call: %s%s\n", tmp -> name, tmp -> func );
         code ( "invokestatic Main/%s", $1 );
+        $$ = tmp -> return_type;
     }
     | IDENT '(' ArgumentList ')' {
         Node *tmp = Query_Symbol ( $<s_var>1 );
         printf ( "IDENT (name=%s, address=%d)\n", tmp -> name, tmp -> addr );
         printf ( "call: %s%s\n", tmp -> name, tmp -> func );
         code ( "invokestatic Main/%s(%s)%s", $1, tmp -> argument, get_print_type ( tmp -> return_type ) );
+        $$ = tmp -> return_type;
     }
 ;
 
